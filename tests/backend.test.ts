@@ -773,7 +773,7 @@ describe("backend contracts", () => {
     });
     expect(dryRun.enabled).toBe(true);
     expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.commands.join("\n")).toContain("@remotion/cli");
     expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
   });
 

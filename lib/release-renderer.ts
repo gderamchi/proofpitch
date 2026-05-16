@@ -228,7 +228,7 @@ export async function renderReleaseArtifacts({
   const slidevPngArgs = ["--yes", "@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
     "--yes",
-    "remotion",
+    "@remotion/cli",
     "render",
     "remotion/index.tsx",
     compositionId,
