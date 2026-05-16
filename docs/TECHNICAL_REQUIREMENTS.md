@@ -38,20 +38,28 @@ After approval, the client renders the structured outline as visual 16:9 slide p
 
 ### OpenAI
 
-OpenAI is used for structured `PitchPack` generation. Prompts must ask for conservative, evidence-aware copy and must not describe removed MVP outputs.
+OpenAI is used for structured `PitchPack` generation through the Responses API. The server sends the raw builder note, optional project URL, Tavily research, and Pioneer extraction summary, then requires the response to match the `PitchPack` JSON schema. Prompts must ask for conservative, evidence-aware copy, must not invent metrics, and must not describe removed MVP outputs.
+
+OpenAI is the synthesis layer only. It should explain claim strength from the provided context and source snippets; it should not be treated as an independent evidence source. If OpenAI is missing or fails, the API must mark the provider state and use the deterministic local fallback pack.
 
 ### Tavily
 
-Tavily is the research/source provider for proof-backed claims. When unavailable, the app still returns a deterministic local pack and marks Tavily as missing or failed.
+Tavily is the research/source provider for proof-backed claims. It receives a truncated search query derived from the raw input and optional project URL, then returns a basic answer, source snippets, URLs, scores, and usage credits. Tavily output becomes source documents and context for OpenAI.
+
+When Tavily is unavailable, the app still runs and marks Tavily as missing or failed. OpenAI must receive an explicit unavailable-source note rather than a fabricated research summary.
 
 ### Pioneer
 
-Pioneer is the entity and claim-risk extractor. The adapter must parse both legacy array responses and nested responses at:
+Pioneer is the entity and claim-risk extractor. It receives the raw input and extracts project, product, technology, metric, user, problem, and claim entities plus a `claim_risk` classification. Its output gives OpenAI a compact signal about what the user actually claimed before the pitch copy is synthesized.
+
+The adapter must parse both legacy array responses and nested responses at:
 
 ```text
 raw.result.data.entities
 raw.result.data.claim_risk
 ```
+
+When Pioneer is unavailable, the app must record the provider state and continue with an explicit empty extraction summary.
 
 ## Product Demo Video
 
