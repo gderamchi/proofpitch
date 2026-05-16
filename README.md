@@ -47,6 +47,91 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The app can run locally without provider keys. In that mode it uses deterministic fallback data and marks provider states as missing or fallback. Add provider keys when you want live structured generation and proof sourcing.
 
+## Production Usage And Test Guide
+
+Production URL: [https://proofpitch.vercel.app](https://proofpitch.vercel.app)
+
+Use the production site when you want to validate the deployed Vercel app, production environment variables, public API routes, and the end-to-end launch-pack workflow.
+
+### Browser Test
+
+1. Open [https://proofpitch.vercel.app](https://proofpitch.vercel.app).
+2. Enter a public product URL, product name, target audience, launch goal, optional demo instructions, and a deck mode (`investor`, `sales`, or `launch`).
+3. Generate the launch pack.
+4. Confirm the response shows a claim ledger before the deck is approved.
+5. Approve only supported, weak-but-acceptable, or user-provided claims that should be included in the deck.
+6. Confirm the visual 16:9 slide preview appears after approval, with slide navigation and a Slidev markdown download.
+7. Trigger rendering when the render action is available.
+8. Confirm the deck state and demo-video state are reported separately.
+
+Expected production behavior:
+
+- The page must be usable without login, signup, checkout, paid plan selection, or one-shot credits.
+- Missing optional providers must be shown as missing, fallback, pending, blocked, or disabled states instead of blank UI.
+- The pitch deck and product demo video must stay separate. A Slidev deck render is not a product demo video.
+- A successful pack includes `claimReview`, `pitchDeck`, `demoVideo`, `pitchPack`, and provider status for OpenAI, Tavily, and Pioneer.
+
+### API Smoke Test
+
+Set the production base URL once:
+
+```bash
+PROD_BASE_URL=https://proofpitch.vercel.app
+```
+
+Check service health:
+
+```bash
+curl -fsS "$PROD_BASE_URL/api/health"
+```
+
+The health response should include:
+
+- `"ok": true`
+- `"service": "proofpitch"`
+- provider configuration flags for OpenAI, Tavily, and Pioneer
+- Supabase and billing health, with billing normally in `manual` mode
+
+Create a launch pack:
+
+```bash
+curl -fsS -X POST "$PROD_BASE_URL/api/launch-packs" \
+  -H 'content-type: application/json' \
+  -d '{
+    "sourceUrl": "https://example.com",
+    "productName": "ProofPitch",
+    "targetAudience": "Founder-led B2B teams",
+    "launchGoal": "Prepare a customer-call demo and concise deck.",
+    "demoInstructions": "Scroll to the main call to action.",
+    "deckMode": "sales"
+  }'
+```
+
+The response is valid for production testing when:
+
+- `id` is present.
+- `claimReview.status` is `pending`.
+- `pitchDeck.status` is `pending` and `pitchDeck.format` is `slidev`.
+- `pitchPack.claims` is an array.
+- `demoVideo.status` is `pending`, `ready`, `failed`, or another explicit non-blank state.
+- `providers.openai`, `providers.tavily`, and `providers.pioneer` each include a state and detail.
+
+Approve a deck outline after copying one acceptable claim id from the response:
+
+```bash
+curl -fsS -X POST "$PROD_BASE_URL/api/launch-packs/<id>/outline" \
+  -H 'content-type: application/json' \
+  -d '{ "acceptedClaimIds": ["claim-1"] }'
+```
+
+The outline response is valid when `claimReview.status` is `approved`, `pitchDeck.status` is `ready`, `pitchDeck.markdown` contains Slidev markdown, and `pitchDeck.outline.slides` contains structured slide specs.
+
+Render checks are environment-dependent:
+
+- `POST /api/launch-packs/<id>/render` should never require sign-in.
+- If production rendering is enabled, it should report ready or running artifact state.
+- If rendering is disabled or blocked, it should return an explicit disabled, queued, blocked, failed, or pending state with a reason.
+
 ## Environment Variables
 
 | Variable | Required | Purpose |
