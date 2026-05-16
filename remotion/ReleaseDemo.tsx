@@ -101,16 +101,28 @@ function estimateVoiceoverFrames(text: string, fps: number) {
   return Math.ceil(seconds * fps);
 }
 
+function voiceoverFramesForSegment(segment: VoiceoverSegment, fps: number) {
+  const estimatedFrames = estimateVoiceoverFrames(segment.text, fps);
+  const measuredFrames = segment.durationSeconds ? segment.durationSeconds * fps : 0;
+
+  if (!Number.isFinite(measuredFrames) || measuredFrames <= 0) {
+    return estimatedFrames;
+  }
+
+  if (measuredFrames > fps * 18 || measuredFrames > estimatedFrames * 2.4) {
+    return estimatedFrames;
+  }
+
+  return Math.max(Math.round(fps * 2.6), Math.ceil(measuredFrames));
+}
+
 function voiceoverTimeline(segments: VoiceoverSegment[], fps: number, durationInFrames: number) {
   const gapFrames = Math.round(fps * 1.1);
   let cursor = Math.round(fps * 0.4);
 
   return segments
     .map((segment) => {
-      const durationInFramesForSegment = Math.ceil(
-        (segment.durationSeconds ? segment.durationSeconds * fps : estimateVoiceoverFrames(segment.text, fps)) +
-          gapFrames * 0.35,
-      );
+      const durationInFramesForSegment = voiceoverFramesForSegment(segment, fps) + Math.ceil(gapFrames * 0.35);
       const from = cursor;
       const end = from + durationInFramesForSegment;
 
@@ -364,7 +376,7 @@ export function ReleaseDemo(props: RemotionRenderProps) {
       </div>
       {scheduledVoiceovers.map((segment, index) =>
         segment.url ? (
-          <Sequence key={`${segment.url}-${index}`} from={segment.from}>
+          <Sequence key={`${segment.url}-${index}`} from={segment.from} durationInFrames={segment.end - segment.from}>
             <Audio src={segment.url} volume={0.94} />
           </Sequence>
         ) : null,

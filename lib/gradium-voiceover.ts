@@ -129,6 +129,20 @@ function estimateSpeechSeconds(text: string) {
   return Math.max(3.4, Math.min(7.6, words / 2.35 + 1.2));
 }
 
+function safeSpeechSeconds(measuredSeconds: number | undefined, text: string) {
+  const estimate = estimateSpeechSeconds(text);
+
+  if (!measuredSeconds || !Number.isFinite(measuredSeconds) || measuredSeconds <= 0) {
+    return estimate;
+  }
+
+  if (measuredSeconds > 18 || measuredSeconds > estimate * 2.4) {
+    return estimate;
+  }
+
+  return Math.max(2.6, measuredSeconds);
+}
+
 function wavDurationSeconds(buffer: Buffer) {
   if (buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WAVE") {
     return undefined;
@@ -402,7 +416,7 @@ async function synthesizeWithGradium(text: string, outputPath: string, config: G
 
   await writeFile(outputPath, audio);
 
-  return { durationSeconds: wavDurationSeconds(audio) ?? estimateSpeechSeconds(text), skipped: false };
+  return { durationSeconds: safeSpeechSeconds(wavDurationSeconds(audio), text), skipped: false };
 }
 
 export async function buildGradiumVoiceoverSegments({
