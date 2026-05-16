@@ -1,0 +1,46 @@
+{
+  "name": "proofpitch",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "release:deck:export": "slidev export .proofpitch/release-assets/latest/pitch-deck.md --format pdf --output .proofpitch/release-assets/latest/pitch-deck.pdf",
+    "release:video:studio": "remotion studio remotion/index.tsx",
+    "release:video:render": "remotion render remotion/index.tsx ProofPitchReleaseDemo .proofpitch/release-assets/latest/demo-video.mp4",
+    "release:render:local": "node scripts/render-release-artifacts.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.462",
+    "@remotion/cli": "^4.0.462",
+    "@remotion/player": "^4.0.462",
+    "@remotion/renderer": "^4.0.462",
+    "@slidev/cli": "^52.15.2",
+    "@slidev/theme-default": "^0.25.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.105.4",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.16.0",
+    "next": "16.2.6",
+    "playwright-chromium": "^1.60.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "^4.0.462",
+    "stripe": "^22.1.1",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^4.1.6"
+  }
+}
