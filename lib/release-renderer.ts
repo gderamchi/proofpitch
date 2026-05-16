@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { captureWebsiteScreenshots } from "./demo-video-capture";
@@ -35,7 +36,9 @@ type RenderReleaseArtifactsResult = {
 };
 
 export function outputDirForLaunchPack(launchPackId: string) {
-  return path.join(process.cwd(), ".proofpitch", "release-assets", launchPackId);
+  const outputRoot = process.env.PROOFPITCH_OUTPUT_DIR ?? (process.env.VERCEL ? os.tmpdir() : process.cwd());
+
+  return path.join(outputRoot, ".proofpitch", "release-assets", launchPackId);
 }
 
 export function renderedDemoVideoPath(launchPackId: string) {

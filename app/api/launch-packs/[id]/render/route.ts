@@ -1,9 +1,12 @@
+import { readFile } from "node:fs/promises";
+
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
 import { getLaunchPackDetail, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
 import { renderReleaseArtifacts } from "@/lib/release-renderer";
 import { RenderLaunchDeckRequestSchema } from "@/lib/schemas";
+import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -12,6 +15,38 @@ type RouteContext = {
     id: string;
   }>;
 };
+
+async function uploadRenderedVideo(launchPackId: string, videoPath: string) {
+  if (!hasSupabaseAdminEnv()) {
+    return null;
+  }
+
+  const admin = createSupabaseAdminClient();
+
+  if (!admin) {
+    return null;
+  }
+
+  const bytes = await readFile(videoPath);
+  const storagePath = `launch-packs/${launchPackId}/demo-video.mp4`;
+  const bucket = admin.storage.from("proofpitch-exports");
+  const { error: uploadError } = await bucket.upload(storagePath, bytes, {
+    contentType: "video/mp4",
+    upsert: true,
+  });
+
+  if (uploadError) {
+    throw new Error(`Video rendered but upload failed: ${uploadError.message}`);
+  }
+
+  const { data, error: signedUrlError } = await bucket.createSignedUrl(storagePath, 60 * 60);
+
+  if (signedUrlError) {
+    throw new Error(`Video rendered but signed URL creation failed: ${signedUrlError.message}`);
+  }
+
+  return data.signedUrl;
+}
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -53,8 +88,13 @@ export async function POST(request: Request, context: RouteContext) {
       renderDeck: body.renderDeck === true,
       renderVideo: body.renderVideo !== false,
     });
+    const videoArtifact = result.artifacts.find((artifact) => artifact.type === "video" && artifact.status === "ready");
+    const uploadedVideoUrl = videoArtifact ? await uploadRenderedVideo(id, videoArtifact.path) : null;
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      videoUrl: uploadedVideoUrl ?? result.videoUrl,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid request body.", details: z.treeifyError(error) }, { status: 400 });
