@@ -104,7 +104,8 @@ curl -fsS -X POST "$PROD_BASE_URL/api/launch-packs" \
     "launchGoal": "Prepare a customer-call demo and concise deck.",
     "demoInstructions": "Scroll to the main call to action.",
     "deckMode": "sales"
-  }'
+  }' \
+  -o /tmp/proofpitch-launch-pack.json
 ```
 
 The response is valid for production testing when:
@@ -116,12 +117,33 @@ The response is valid for production testing when:
 - `demoVideo.status` is `pending`, `ready`, `failed`, or another explicit non-blank state.
 - `providers.openai`, `providers.tavily`, and `providers.pioneer` each include a state and detail.
 
-Approve a deck outline after copying one acceptable claim id from the response:
+For anonymous API smoke tests, include the returned `launchPack` as a fallback when approving the outline. This matches the browser flow and avoids relying on shared local memory between separate Vercel serverless invocations.
+
+Build an outline approval body from the first returned claim:
 
 ```bash
-curl -fsS -X POST "$PROD_BASE_URL/api/launch-packs/<id>/outline" \
+node -e '
+const fs = require("fs");
+const pack = JSON.parse(fs.readFileSync("/tmp/proofpitch-launch-pack.json", "utf8"));
+const claim = (pack.pitchPack?.claims || []).find((item) => item.id);
+if (!pack.id || !claim) throw new Error("Missing launch pack id or claim id.");
+fs.writeFileSync(
+  "/tmp/proofpitch-outline-request.json",
+  JSON.stringify({ acceptedClaimIds: [claim.id], launchPack: pack }, null, 2)
+);
+console.log(`Launch pack: ${pack.id}`);
+console.log(`Accepted claim: ${claim.id}`);
+'
+```
+
+Approve the deck outline:
+
+```bash
+LAUNCH_PACK_ID="$(node -p 'JSON.parse(require("fs").readFileSync("/tmp/proofpitch-launch-pack.json", "utf8")).id')"
+
+curl -fsS -X POST "$PROD_BASE_URL/api/launch-packs/$LAUNCH_PACK_ID/outline" \
   -H 'content-type: application/json' \
-  -d '{ "acceptedClaimIds": ["claim-1"] }'
+  --data-binary @/tmp/proofpitch-outline-request.json
 ```
 
 The outline response is valid when `claimReview.status` is `approved`, `pitchDeck.status` is `ready`, `pitchDeck.markdown` contains Slidev markdown, and `pitchDeck.outline.slides` contains structured slide specs.
