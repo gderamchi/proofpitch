@@ -7,7 +7,6 @@ import {
 } from "./release-assets";
 import { getLocalLaunchPack, saveLocalLaunchPack, updateLocalLaunchPack } from "./local-store";
 import { buildClaimReview } from "./deck-spec";
-import { renderReleaseArtifacts } from "./release-renderer";
 import { buildSocialDrafts } from "./social-drafts";
 import {
   ApproveDeckOutlineRequestSchema,
@@ -375,6 +374,7 @@ export async function startLaunchPackDeckRender(
   );
 
   const runningPack = (await getLaunchPackDetail(id))?.launchPack ?? launchPack;
+  const { renderReleaseArtifacts } = await import("./release-renderer");
   const render = await renderReleaseArtifacts({
     launchPackId: id,
     pitchDeck: runningPack.pitchDeck,

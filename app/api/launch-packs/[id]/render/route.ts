@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
 import { getLaunchPackDetail, markLaunchPackDemoVideoReady, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
-import { renderReleaseArtifacts } from "@/lib/release-renderer";
 import { RenderLaunchDeckRequestSchema, RenderLaunchVideoRequestSchema } from "@/lib/schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
@@ -86,6 +85,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Release pack not found." }, { status: 404 });
     }
 
+    const { renderReleaseArtifacts } = await import("@/lib/release-renderer");
     const result = await renderReleaseArtifacts({
       baseUrl: new URL(request.url).origin,
       launchPackId: id,
