@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
-    <title>ProofPitch Demo Video</title>
+    <title>ProofPitch Real Frontend Demo</title>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
       :root {
@@ -16,8 +16,6 @@
         --teal: #0f766e;
         --teal-dark: #115e59;
         --teal-soft: #effaf5;
-        --amber: #fff6df;
-        --red-soft: #fef2f2;
         --white: #ffffff;
       }
 
@@ -38,21 +36,10 @@
         letter-spacing: 0;
       }
 
-      body {
-        position: relative;
-      }
-
       #root {
         position: relative;
         width: 1920px;
         height: 1080px;
-        overflow: hidden;
-        background: var(--canvas);
-      }
-
-      .backdrop {
-        position: absolute;
-        inset: 0;
         overflow: hidden;
         background:
           linear-gradient(90deg, rgba(17, 24, 39, 0.045) 1px, transparent 1px),
@@ -61,660 +48,38 @@
         background-size: 36px 36px, 36px 36px, auto;
       }
 
-      .backdrop::before,
-      .backdrop::after {
-        content: "";
+      .stage {
         position: absolute;
-        border: 2px solid rgba(17, 24, 39, 0.12);
-        background: rgba(255, 253, 247, 0.34);
-      }
-
-      .backdrop::before {
-        width: 420px;
-        height: 420px;
-        left: -140px;
-        top: 120px;
-      }
-
-      .backdrop::after {
-        width: 520px;
-        height: 280px;
-        right: -130px;
-        bottom: 88px;
-      }
-
-      .scan-line {
-        position: absolute;
-        left: -180px;
-        top: 0;
-        width: 180px;
-        height: 1080px;
-        background: rgba(15, 118, 110, 0.055);
-        transform: skewX(-12deg);
-      }
-
-      .brand-lockup {
-        position: absolute;
-        left: 64px;
-        top: 52px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        z-index: 20;
-      }
-
-      .logo-mark {
+        inset: 42px;
         display: grid;
-        width: 56px;
-        height: 56px;
-        place-items: center;
-        border: 2px solid var(--deep-ink);
-        background: #0b1211;
-      }
-
-      .logo-mark img {
-        width: 42px;
-        height: 42px;
-        object-fit: contain;
-      }
-
-      .brand-name {
-        font-size: 26px;
-        font-weight: 800;
-        line-height: 1;
-        color: var(--deep-ink);
-      }
-
-      .brand-sub {
-        margin-top: 6px;
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1;
-        color: var(--teal-dark);
-        text-transform: uppercase;
-      }
-
-      .timer {
-        position: absolute;
-        right: 64px;
-        top: 52px;
-        z-index: 20;
-        width: 360px;
-        border: 2px solid var(--deep-ink);
-        background: var(--panel);
-        padding: 14px 16px 16px;
-      }
-
-      .timer-label {
-        display: flex;
-        justify-content: space-between;
-        color: var(--deep-ink);
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .timer-track {
-        height: 10px;
-        margin-top: 12px;
-        background: #d6d3d1;
-        overflow: hidden;
-      }
-
-      .timer-fill {
-        width: 0%;
-        height: 100%;
-        background: var(--teal);
-      }
-
-      .scene {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        padding: 150px 92px 76px;
-        opacity: 0;
-      }
-
-      .scene-content {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 30px;
-      }
-
-      .kicker {
-        color: var(--teal-dark);
-        font-size: 18px;
-        font-weight: 900;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .headline {
-        max-width: 1080px;
-        color: var(--deep-ink);
-        font-size: 82px;
-        font-weight: 850;
-        line-height: 0.98;
-      }
-
-      .headline .mark {
-        color: var(--teal-dark);
-      }
-
-      .body-copy {
-        max-width: 860px;
-        color: #44403c;
-        font-size: 30px;
-        font-weight: 500;
-        line-height: 1.32;
-      }
-
-      .panel {
-        border: 2px solid var(--deep-ink);
-        background: var(--panel);
-        box-shadow: 10px 10px 0 rgba(17, 24, 39, 0.95);
-      }
-
-      .soft-panel {
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-      }
-
-      .grid-two {
-        display: grid;
-        grid-template-columns: 0.9fr 1.1fr;
-        gap: 36px;
-        min-height: 0;
-        flex: 1;
-      }
-
-      .grid-three {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 20px;
-      }
-
-      .form-card {
-        align-self: stretch;
-        padding: 34px;
-      }
-
-      .input-row {
-        display: grid;
-        gap: 12px;
-        margin-bottom: 18px;
-      }
-
-      .input-label {
-        color: #57534e;
-        font-size: 13px;
-        font-weight: 850;
-        text-transform: uppercase;
-      }
-
-      .input-box {
-        border: 2px solid var(--deep-ink);
-        background: var(--white);
-        padding: 18px 20px;
-        color: var(--deep-ink);
-        font-size: 24px;
-        font-weight: 650;
-        line-height: 1.2;
-      }
-
-      .mode-row {
-        display: flex;
-        gap: 10px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid var(--deep-ink);
-        padding: 12px 18px;
-        background: var(--white);
-        color: var(--deep-ink);
-        font-size: 17px;
-        font-weight: 850;
-      }
-
-      .pill.active {
-        background: var(--deep-ink);
-        color: var(--white);
-      }
-
-      .button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        border: 2px solid var(--deep-ink);
-        background: var(--deep-ink);
-        color: var(--white);
-        padding: 20px 24px;
-        font-size: 23px;
-        font-weight: 850;
-      }
-
-      .arrow {
-        font-size: 28px;
-        line-height: 1;
-      }
-
-      .output-stack {
-        display: grid;
-        gap: 18px;
-        align-content: end;
-      }
-
-      .status-card {
-        display: grid;
-        grid-template-columns: 64px 1fr auto;
-        align-items: center;
-        gap: 18px;
-        border: 2px solid var(--deep-ink);
-        background: var(--white);
-        padding: 20px;
-      }
-
-      .status-icon {
-        display: grid;
-        width: 64px;
-        height: 64px;
-        place-items: center;
-        background: var(--teal-soft);
-        color: var(--teal-dark);
-        font-size: 32px;
-        font-weight: 900;
-      }
-
-      .status-title {
-        color: var(--deep-ink);
-        font-size: 28px;
-        font-weight: 850;
-        line-height: 1.1;
-      }
-
-      .status-detail {
-        margin-top: 8px;
-        color: #57534e;
-        font-size: 18px;
-        font-weight: 550;
-        line-height: 1.25;
-      }
-
-      .status-tag {
-        border: 2px solid var(--teal-dark);
-        background: var(--teal-soft);
-        padding: 10px 14px;
-        color: var(--teal-dark);
-        font-size: 15px;
-        font-weight: 900;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .claim-board {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 360px;
         gap: 28px;
-        min-height: 0;
-        flex: 1;
       }
 
-      .claim-list,
-      .ledger-card,
-      .deck-card,
-      .video-card,
-      .launch-card {
-        padding: 30px;
-      }
-
-      .section-title {
-        color: var(--deep-ink);
-        font-size: 36px;
-        font-weight: 850;
-        line-height: 1.04;
-      }
-
-      .section-note {
-        margin-top: 12px;
-        color: #57534e;
-        font-size: 20px;
-        font-weight: 500;
-        line-height: 1.35;
-      }
-
-      .claim-row {
-        display: grid;
-        grid-template-columns: 38px 1fr auto;
-        gap: 16px;
-        align-items: start;
-        margin-top: 18px;
-        border: 2px solid #d6d3d1;
-        background: var(--white);
-        padding: 18px;
-      }
-
-      .check {
-        display: grid;
-        width: 38px;
-        height: 38px;
-        place-items: center;
-        border: 2px solid var(--deep-ink);
-        background: var(--teal-soft);
-        color: var(--teal-dark);
-        font-size: 20px;
-        font-weight: 900;
-      }
-
-      .claim-row.rejected .check {
-        background: var(--red-soft);
-        color: #991b1b;
-      }
-
-      .claim-text {
-        color: var(--deep-ink);
-        font-size: 22px;
-        font-weight: 720;
-        line-height: 1.25;
-      }
-
-      .claim-source {
-        margin-top: 8px;
-        color: #57534e;
-        font-size: 16px;
-        font-weight: 600;
-        line-height: 1.2;
-      }
-
-      .claim-state {
-        border: 2px solid var(--teal-dark);
-        background: var(--teal-soft);
-        padding: 8px 10px;
-        color: var(--teal-dark);
-        font-size: 13px;
-        font-weight: 900;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .claim-row.rejected .claim-state {
-        border-color: #991b1b;
-        background: var(--red-soft);
-        color: #991b1b;
-      }
-
-      .provider-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
-        margin-top: 22px;
-      }
-
-      .provider {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-        padding: 14px;
-      }
-
-      .provider img {
-        width: 34px;
-        height: 34px;
-        object-fit: contain;
-      }
-
-      .provider-name {
-        color: var(--deep-ink);
-        font-size: 16px;
-        font-weight: 900;
-        line-height: 1;
-      }
-
-      .provider-state {
-        margin-top: 6px;
-        color: var(--teal-dark);
-        font-size: 12px;
-        font-weight: 850;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .ledger-card {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-      }
-
-      .flow-line {
-        display: grid;
-        gap: 16px;
-        margin-top: 28px;
-      }
-
-      .flow-step {
-        display: grid;
-        grid-template-columns: 52px 1fr;
-        gap: 16px;
-        align-items: start;
-      }
-
-      .flow-num {
-        display: grid;
-        width: 52px;
-        height: 52px;
-        place-items: center;
-        background: var(--deep-ink);
-        color: var(--white);
-        font-size: 20px;
-        font-weight: 900;
-      }
-
-      .flow-copy {
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-        padding: 14px 16px;
-        color: var(--deep-ink);
-        font-size: 21px;
-        font-weight: 720;
-        line-height: 1.25;
-      }
-
-      .deck-layout {
-        display: grid;
-        grid-template-columns: 220px 1fr;
-        gap: 24px;
-        flex: 0 0 520px;
-        min-height: 0;
-      }
-
-      #scene-deck .headline {
-        max-width: 1120px;
-        font-size: 66px;
-      }
-
-      .thumb-list {
-        display: grid;
-        gap: 14px;
-        align-content: start;
-      }
-
-      .thumb {
-        aspect-ratio: 16 / 9;
-        border: 2px solid #d6d3d1;
-        background: var(--white);
-        padding: 10px;
-      }
-
-      .thumb.active {
-        border-color: var(--deep-ink);
-        box-shadow: 5px 5px 0 var(--deep-ink);
-      }
-
-      .thumb-line {
-        height: 8px;
-        margin-top: 8px;
-        background: #d6d3d1;
-      }
-
-      .thumb-line.short {
-        width: 62%;
-      }
-
-      .slide-main {
-        position: relative;
-        width: 100%;
-        max-width: 1060px;
-        aspect-ratio: 16 / 9;
-        align-self: start;
-        justify-self: end;
-        border: 3px solid var(--deep-ink);
-        background: #0f1f1d;
-        color: var(--white);
-        padding: 44px;
-        overflow: hidden;
-      }
-
-      .slide-grid {
-        position: absolute;
-        inset: 0;
-        opacity: 0.12;
-        background-image:
-          linear-gradient(90deg, #ffffff 1px, transparent 1px),
-          linear-gradient(#ffffff 1px, transparent 1px);
-        background-size: 32px 32px;
-      }
-
-      .slide-content {
+      .browser-shell {
         position: relative;
         display: grid;
-        grid-template-columns: 1fr 0.54fr;
-        gap: 34px;
-        height: 100%;
-        align-items: center;
-      }
-
-      .slide-kicker {
-        color: #99f6e4;
-        font-size: 17px;
-        font-weight: 900;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .slide-title {
-        margin-top: 22px;
-        color: var(--white);
-        font-size: 58px;
-        font-weight: 850;
-        line-height: 0.98;
-      }
-
-      .slide-bullet {
-        margin-top: 20px;
-        color: rgba(255, 255, 255, 0.82);
-        font-size: 22px;
-        font-weight: 500;
-        line-height: 1.32;
-      }
-
-      .visual-stack {
-        display: grid;
-        gap: 14px;
-      }
-
-      .visual-note {
-        border: 2px solid rgba(255, 255, 255, 0.26);
-        background: rgba(255, 255, 255, 0.09);
-        padding: 16px;
-        color: rgba(255, 255, 255, 0.86);
-        font-size: 19px;
-        font-weight: 700;
-        line-height: 1.25;
-      }
-
-      .deck-footer {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 20px;
-        color: rgba(255, 255, 255, 0.58);
-        font-size: 14px;
-        font-weight: 850;
-        text-transform: uppercase;
-      }
-
-      .asset-strip {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 18px;
-        margin-top: 22px;
-      }
-
-      .asset {
-        border: 2px solid var(--deep-ink);
-        background: var(--white);
-        padding: 18px;
-      }
-
-      .asset-label {
-        color: #57534e;
-        font-size: 13px;
-        font-weight: 900;
-        line-height: 1;
-        text-transform: uppercase;
-      }
-
-      .asset-value {
-        margin-top: 10px;
-        color: var(--deep-ink);
-        font-size: 24px;
-        font-weight: 850;
-        line-height: 1.15;
-      }
-
-      .video-layout {
-        display: grid;
-        grid-template-columns: 0.74fr 1.26fr;
-        gap: 32px;
-        min-height: 0;
-        flex: 1;
-      }
-
-      .video-side,
-      .browser-card {
-        padding: 30px;
-      }
-
-      .browser-window {
-        display: grid;
-        grid-template-rows: 42px 1fr;
-        height: 100%;
+        grid-template-rows: 50px 1fr;
+        min-width: 0;
         min-height: 0;
         border: 3px solid var(--deep-ink);
         background: var(--white);
+        box-shadow: 12px 12px 0 rgba(17, 24, 39, 0.92);
         overflow: hidden;
       }
 
       .browser-top {
         display: flex;
         align-items: center;
-        gap: 9px;
-        border-bottom: 2px solid #d6d3d1;
+        gap: 10px;
+        border-bottom: 2px solid var(--line);
         background: #f5f5f4;
-        padding: 0 16px;
+        padding: 0 18px;
       }
 
       .dot {
-        width: 12px;
-        height: 12px;
+        width: 13px;
+        height: 13px;
         border-radius: 999px;
       }
 
@@ -730,706 +95,252 @@
         background: #34d399;
       }
 
-      .url-pill {
+      .url {
         margin-left: 12px;
-        color: #57534e;
-        font-size: 14px;
-        font-weight: 750;
+        color: #44403c;
+        font-size: 15px;
+        font-weight: 800;
       }
 
-      .browser-body {
+      .recording-wrap {
         position: relative;
         min-height: 0;
+        background: #0b1211;
         overflow: hidden;
-        background: var(--canvas);
-        padding: 26px;
       }
 
-      .mini-hero {
+      #browser-recording {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #0b1211;
+      }
+
+      .recording-badge {
+        position: absolute;
+        left: 24px;
+        top: 24px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
         border: 2px solid var(--deep-ink);
-        background: var(--panel);
-        padding: 26px;
-      }
-
-      .mini-title {
+        background: rgba(255, 253, 247, 0.94);
         color: var(--deep-ink);
-        font-size: 44px;
-        font-weight: 850;
-        line-height: 1.02;
+        padding: 10px 13px;
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
       }
 
-      .mini-copy {
-        margin-top: 14px;
-        color: #57534e;
-        font-size: 20px;
-        font-weight: 520;
-        line-height: 1.34;
-      }
-
-      .mini-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
-        margin-top: 18px;
-      }
-
-      .mini-card {
-        height: 112px;
-        border: 2px solid #d6d3d1;
-        background: var(--white);
-        padding: 14px;
-      }
-
-      .mini-card strong {
-        display: block;
-        color: var(--deep-ink);
-        font-size: 18px;
-        line-height: 1.1;
-      }
-
-      .mini-card span {
-        display: block;
-        margin-top: 9px;
-        color: #57534e;
-        font-size: 14px;
-        font-weight: 600;
-        line-height: 1.2;
-      }
-
-      .cursor {
-        position: absolute;
-        left: 58%;
-        top: 58%;
-        width: 54px;
-        height: 62px;
-        filter: drop-shadow(0 8px 12px rgba(17, 24, 39, 0.28));
-      }
-
-      .click-ring {
-        position: absolute;
-        left: 52%;
-        top: 51%;
-        width: 76px;
-        height: 76px;
-        border: 5px solid var(--teal);
+      .rec-dot {
+        width: 10px;
+        height: 10px;
         border-radius: 999px;
-        opacity: 0;
+        background: #dc2626;
       }
 
-      .video-steps {
-        display: grid;
-        gap: 14px;
-        margin-top: 28px;
+      .side-rail {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        border: 3px solid var(--deep-ink);
+        background: var(--panel);
+        box-shadow: 12px 12px 0 rgba(17, 24, 39, 0.92);
+        padding: 30px;
       }
 
-      .video-step {
+      .brand-lockup {
         display: flex;
         align-items: center;
         gap: 14px;
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-        padding: 16px;
-        color: var(--deep-ink);
-        font-size: 21px;
-        font-weight: 750;
-        line-height: 1.2;
       }
 
-      .pulse-box {
+      .logo-mark {
+        display: grid;
+        width: 54px;
+        height: 54px;
+        place-items: center;
+        border: 2px solid var(--deep-ink);
+        background: #0b1211;
+      }
+
+      .logo-mark img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+      }
+
+      .brand-name {
+        display: block;
+        color: var(--deep-ink);
+        font-size: 25px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .brand-sub {
+        display: block;
+        margin-top: 6px;
+        color: var(--teal-dark);
+        font-size: 11px;
+        font-weight: 900;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .kicker {
+        color: var(--teal-dark);
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .headline {
+        margin-top: 18px;
+        color: var(--deep-ink);
+        font-size: 50px;
+        font-weight: 900;
+        line-height: 0.98;
+      }
+
+      .copy {
+        margin-top: 18px;
+        color: #44403c;
+        font-size: 20px;
+        font-weight: 580;
+        line-height: 1.35;
+      }
+
+      .steps {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 38px 1fr;
+        gap: 12px;
+        align-items: center;
+        border: 2px solid var(--line);
+        background: var(--soft-panel);
+        padding: 12px;
+      }
+
+      .step-num {
         display: grid;
         width: 38px;
         height: 38px;
         place-items: center;
         background: var(--teal-soft);
         color: var(--teal-dark);
+        font-size: 16px;
         font-weight: 900;
       }
 
-      .launch-layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 32px;
-        min-height: 0;
-        flex: 1;
-      }
-
-      .social-tabs {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        margin-top: 22px;
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-        padding: 8px;
-      }
-
-      .social-tab {
-        padding: 14px;
-        text-align: center;
-        color: #57534e;
-        font-size: 18px;
-        font-weight: 850;
-      }
-
-      .social-tab.active {
-        background: var(--deep-ink);
-        color: var(--white);
-      }
-
-      .draft-box {
-        margin-top: 18px;
-        border: 2px solid #d6d3d1;
-        background: var(--soft-panel);
-        padding: 20px;
+      .step-copy {
         color: var(--deep-ink);
-        font-size: 22px;
-        font-weight: 650;
-        line-height: 1.34;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.18;
       }
 
-      .final-grid {
-        display: grid;
-        gap: 18px;
-        margin-top: 28px;
-      }
-
-      .final-row {
-        display: grid;
-        grid-template-columns: 54px 1fr auto;
+      .status-row {
+        display: flex;
         align-items: center;
-        gap: 16px;
-        border: 2px solid var(--deep-ink);
-        background: var(--white);
-        padding: 18px;
+        justify-content: space-between;
+        gap: 14px;
+        border-top: 2px solid var(--line);
+        padding-top: 18px;
       }
 
-      .final-icon {
-        display: grid;
-        width: 54px;
-        height: 54px;
-        place-items: center;
-        background: var(--teal-soft);
-        color: var(--teal-dark);
-        font-size: 26px;
-        font-weight: 900;
-      }
-
-      .final-title {
-        color: var(--deep-ink);
-        font-size: 25px;
-        font-weight: 850;
-        line-height: 1.1;
-      }
-
-      .final-note {
-        margin-top: 7px;
+      .status-label {
         color: #57534e;
-        font-size: 17px;
-        font-weight: 560;
-        line-height: 1.25;
-      }
-
-      .ready {
-        border: 2px solid var(--teal-dark);
-        background: var(--teal-soft);
-        padding: 10px 13px;
-        color: var(--teal-dark);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 900;
-        line-height: 1;
         text-transform: uppercase;
       }
 
-      .closing-mark {
-        display: grid;
-        width: 92px;
-        height: 92px;
-        place-items: center;
-        border: 3px solid var(--deep-ink);
-        background: #0b1211;
-        color: var(--panel);
-        font-size: 44px;
+      .status-value {
+        border: 2px solid var(--teal-dark);
+        background: var(--teal-soft);
+        color: var(--teal-dark);
+        padding: 8px 10px;
+        font-size: 12px;
         font-weight: 900;
-        line-height: 1;
-      }
-
-      .closing {
-        display: grid;
-        grid-template-columns: 0.85fr 1.15fr;
-        gap: 42px;
-        align-items: stretch;
-        min-height: 0;
-        flex: 1;
-      }
-
-      .closing-left {
-        padding: 42px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-      }
-
-      .closing-right {
-        padding: 42px;
-        display: grid;
-        align-content: center;
-        gap: 18px;
+        text-transform: uppercase;
       }
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="24" data-width="1920" data-height="1080">
-      <div class="backdrop" data-layout-ignore></div>
-      <div class="scan-line" data-layout-ignore></div>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="75" data-width="1920" data-height="1080">
+      <div class="stage">
+        <div class="browser-shell">
+          <div class="browser-top">
+            <span class="dot red"></span>
+            <span class="dot amber"></span>
+            <span class="dot green"></span>
+            <span class="url">proofpitch.vercel.app</span>
+          </div>
+          <div class="recording-wrap">
+            <video
+              id="browser-recording"
+              class="clip"
+              data-start="0"
+              data-duration="75"
+              data-track-index="0"
+              src="assets/proofpitch-browser-recording.mp4"
+              muted
+              playsinline
+            ></video>
+            <div class="recording-badge">
+              <span class="rec-dot"></span>
+              Real browser capture
+            </div>
+          </div>
+        </div>
 
-      <div class="brand-lockup">
-        <span class="logo-mark"><img src="assets/proofpitch-logo.png" alt="" /></span>
-        <span>
-          <span class="brand-name">ProofPitch</span>
-          <span class="brand-sub">Source-backed launch packs</span>
-        </span>
+        <aside id="side-rail" class="clip side-rail" data-start="0" data-duration="75" data-track-index="1">
+          <div class="brand-lockup">
+            <span class="logo-mark"><img src="assets/proofpitch-logo.png" alt="" /></span>
+            <span>
+              <span class="brand-name">ProofPitch</span>
+              <span class="brand-sub">True frontend demo</span>
+            </span>
+          </div>
+
+          <div>
+            <p class="kicker">Recorded in production</p>
+            <h1 class="headline">Not a mockup. The site is being used.</h1>
+            <p class="copy">
+              Playwright records the real app flow. HyperFrames only frames the capture and renders the final shareable MP4.
+            </p>
+          </div>
+
+          <div class="steps">
+            <div class="step"><span class="step-num">1</span><span class="step-copy">Enter a real product URL.</span></div>
+            <div class="step"><span class="step-num">2</span><span class="step-copy">Generate the launch pack.</span></div>
+            <div class="step"><span class="step-num">3</span><span class="step-copy">Review the claim ledger.</span></div>
+            <div class="step"><span class="step-num">4</span><span class="step-copy">Generate and inspect the deck preview.</span></div>
+          </div>
+
+          <div class="status-row">
+            <span class="status-label">Source</span>
+            <span class="status-value">browser recording</span>
+          </div>
+        </aside>
       </div>
-
-      <div class="timer">
-        <div class="timer-label">
-          <span>Demo walkthrough</span>
-          <span>00:24</span>
-        </div>
-        <div class="timer-track"><div class="timer-fill"></div></div>
-      </div>
-
-      <section id="scene-intro" class="clip scene" data-start="0" data-duration="4" data-track-index="1">
-        <div class="scene-content">
-          <p class="kicker">Product URL + short context</p>
-          <h1 class="headline">Turn a rough founder note into a <span class="mark">proof-backed pitch pack.</span></h1>
-          <p class="body-copy">
-            ProofPitch keeps the claim ledger, Slidev pitch deck, Remotion-style demo state, and launch copy as distinct assets.
-          </p>
-          <div class="grid-two">
-            <div class="panel form-card">
-              <div class="input-row">
-                <span class="input-label">Product URL</span>
-                <div class="input-box">https://example.com</div>
-              </div>
-              <div class="input-row">
-                <span class="input-label">Product name</span>
-                <div class="input-box">ProofPitch</div>
-              </div>
-              <div class="input-row">
-                <span class="input-label">Launch goal</span>
-                <div class="input-box">Prepare a customer-call demo and concise deck.</div>
-              </div>
-              <div class="mode-row">
-                <span class="pill active">Sales</span>
-                <span class="pill">Investor</span>
-                <span class="pill">Launch</span>
-              </div>
-            </div>
-            <div class="output-stack">
-              <div class="status-card">
-                <span class="status-icon">1</span>
-                <span>
-                  <span class="status-title">Capture the product surface</span>
-                  <span class="status-detail">Demo instructions tell the agent what to prove on screen.</span>
-                </span>
-                <span class="status-tag">input</span>
-              </div>
-              <div class="status-card">
-                <span class="status-icon">2</span>
-                <span>
-                  <span class="status-title">Review claims before using them</span>
-                  <span class="status-detail">Unsupported language stays visible instead of sliding into the deck.</span>
-                </span>
-                <span class="status-tag">gate</span>
-              </div>
-              <div class="button">Generate launch pack <span class="arrow">→</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-claims" class="clip scene" data-start="4" data-duration="5" data-track-index="1">
-        <div class="scene-content">
-          <p class="kicker">Claim review first</p>
-          <h2 class="headline">A deck is only built from claims the team accepts.</h2>
-          <div class="claim-board">
-            <div class="panel claim-list">
-              <p class="section-title">Claim ledger</p>
-              <p class="section-note">Each claim keeps its status, source, and risk note before the deck is generated.</p>
-              <div class="claim-row">
-                <span class="check">✓</span>
-                <span>
-                  <span class="claim-text">Outputs a script, README snippet, product demo plan, and deck.</span>
-                  <span class="claim-source">Source: generated PitchPack schema</span>
-                </span>
-                <span class="claim-state">supported</span>
-              </div>
-              <div class="claim-row">
-                <span class="check">✓</span>
-                <span>
-                  <span class="claim-text">Can use OpenAI, Tavily, and Pioneer when credentials are configured.</span>
-                  <span class="claim-source">Source: provider configuration</span>
-                </span>
-                <span class="claim-state">provided</span>
-              </div>
-              <div class="claim-row rejected">
-                <span class="check">!</span>
-                <span>
-                  <span class="claim-text">Improves demo quality by 40%.</span>
-                  <span class="claim-source">Risk: metric claim without evidence</span>
-                </span>
-                <span class="claim-state">blocked</span>
-              </div>
-            </div>
-            <div class="panel ledger-card">
-              <div>
-                <p class="section-title">Provider trail</p>
-                <p class="section-note">OpenAI synthesizes structure, Tavily can add source snippets, and Pioneer can classify entities.</p>
-                <div class="provider-grid">
-                  <div class="provider">
-                    <img src="assets/openai.png" alt="" />
-                    <span><span class="provider-name">OpenAI</span><span class="provider-state">structured</span></span>
-                  </div>
-                  <div class="provider">
-                    <img src="assets/tavily.png" alt="" />
-                    <span><span class="provider-name">Tavily</span><span class="provider-state">research</span></span>
-                  </div>
-                  <div class="provider">
-                    <img src="assets/pioneer.png" alt="" />
-                    <span><span class="provider-name">Pioneer</span><span class="provider-state">risk tags</span></span>
-                  </div>
-                </div>
-              </div>
-              <div class="flow-line">
-                <div class="flow-step">
-                  <span class="flow-num">01</span>
-                  <span class="flow-copy">Start with product context and a deck mode.</span>
-                </div>
-                <div class="flow-step">
-                  <span class="flow-num">02</span>
-                  <span class="flow-copy">Approve supported claims only.</span>
-                </div>
-                <div class="flow-step">
-                  <span class="flow-num">03</span>
-                  <span class="flow-copy">Compile the visual pitch deck after review.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-deck" class="clip scene" data-start="9" data-duration="5" data-track-index="1">
-        <div class="scene-content">
-          <p class="kicker">Approved deck output</p>
-          <h2 class="headline">The Slidev deck is generated after the evidence gate.</h2>
-          <div class="deck-layout">
-            <div class="thumb-list">
-              <div class="thumb active">
-                <div class="thumb-line"></div>
-                <div class="thumb-line short"></div>
-                <div class="thumb-line"></div>
-              </div>
-              <div class="thumb">
-                <div class="thumb-line"></div>
-                <div class="thumb-line short"></div>
-              </div>
-              <div class="thumb">
-                <div class="thumb-line"></div>
-                <div class="thumb-line short"></div>
-              </div>
-              <div class="thumb">
-                <div class="thumb-line"></div>
-                <div class="thumb-line short"></div>
-              </div>
-            </div>
-            <div class="slide-main">
-              <div class="slide-grid" data-layout-ignore></div>
-              <div class="slide-content">
-                <div>
-                  <p class="slide-kicker">Sales deck / 01 of 06</p>
-                  <h3 class="slide-title">ProofPitch turns messy launch context into defensible assets.</h3>
-                  <p class="slide-bullet">The buyer sees the point. The team sees the proof trail.</p>
-                  <div class="deck-footer"><span>ProofPitch</span><span>Slidev markdown ready</span></div>
-                </div>
-                <div class="visual-stack">
-                  <div class="visual-note">Supported claims become slide copy.</div>
-                  <div class="visual-note">Blocked claims stay out of external material.</div>
-                  <div class="visual-note">PDF render stays separate from video render.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="asset-strip">
-            <div class="asset"><span class="asset-label">Deck</span><span class="asset-value">6 visual slides</span></div>
-            <div class="asset"><span class="asset-label">Format</span><span class="asset-value">Slidev markdown</span></div>
-            <div class="asset"><span class="asset-label">Export</span><span class="asset-value">PDF when render worker is enabled</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-video" class="clip scene" data-start="14" data-duration="5" data-track-index="1">
-        <div class="scene-content">
-          <p class="kicker">Product demo remains separate</p>
-          <h2 class="headline">The app reports video state explicitly instead of pretending the deck is a demo.</h2>
-          <div class="video-layout">
-            <div class="panel video-side">
-              <p class="section-title">Demo video workflow</p>
-              <p class="section-note">Capture can be pending, ready, blocked, or disabled. The user always sees the real state.</p>
-              <div class="video-steps">
-                <div class="video-step"><span class="pulse-box">1</span><span>Open the product URL with Playwright.</span></div>
-                <div class="video-step"><span class="pulse-box">2</span><span>Follow the demo instructions and capture screenshots.</span></div>
-                <div class="video-step"><span class="pulse-box">3</span><span>Render a product walkthrough MP4 when enabled.</span></div>
-              </div>
-            </div>
-            <div class="panel browser-card">
-              <div class="browser-window">
-                <div class="browser-top">
-                  <span class="dot red"></span>
-                  <span class="dot amber"></span>
-                  <span class="dot green"></span>
-                  <span class="url-pill">example.com / proof moment</span>
-                </div>
-                <div class="browser-body">
-                  <div class="mini-hero">
-                    <h3 class="mini-title">Product proof moment</h3>
-                    <p class="mini-copy">The capture path pauses on the workflow the team asked the demo to show.</p>
-                    <div class="mini-grid">
-                      <div class="mini-card"><strong>Input</strong><span>Product URL and audience.</span></div>
-                      <div class="mini-card"><strong>Capture</strong><span>Consent, scroll, proof moment.</span></div>
-                      <div class="mini-card"><strong>Render</strong><span>MP4 state stays separate.</span></div>
-                    </div>
-                  </div>
-                  <div class="click-ring" data-layout-ignore></div>
-                  <svg class="cursor" viewBox="0 0 46 56" aria-hidden="true">
-                    <path d="M5 4L5 43L16 34L24 52L34 48L26 31L41 31L5 4Z" fill="#fffdf7" stroke="#111827" stroke-width="5" stroke-linejoin="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-launch" class="clip scene" data-start="19" data-duration="5" data-track-index="1">
-        <div class="scene-content">
-          <p class="kicker">Launch pack handoff</p>
-          <h2 class="headline">Copy-ready collateral ships with asset status attached.</h2>
-          <div class="launch-layout">
-            <div class="panel launch-card">
-              <p class="section-title">Launch tray</p>
-              <p class="section-note">Drafts stay editable. Video attachment remains manual in V1 so the user keeps control.</p>
-              <div class="social-tabs">
-                <span class="social-tab active">X</span>
-                <span class="social-tab">LinkedIn</span>
-                <span class="social-tab">Product Hunt</span>
-              </div>
-              <div class="draft-box">
-                ProofPitch turns raw launch context into a reviewed pitch pack: supported claims, deck outline, demo state, and launch copy.
-              </div>
-            </div>
-            <div class="panel launch-card">
-              <p class="section-title">Final assets</p>
-              <p class="section-note">The app keeps every output inspectable before it leaves the workspace.</p>
-              <div class="final-grid">
-                <div class="final-row">
-                  <span class="final-icon">✓</span>
-                  <span><span class="final-title">Claim ledger</span><span class="final-note">Supported, provided, blocked</span></span>
-                  <span class="ready">ready</span>
-                </div>
-                <div class="final-row">
-                  <span class="final-icon">▣</span>
-                  <span><span class="final-title">Pitch deck</span><span class="final-note">Slidev preview and markdown</span></span>
-                  <span class="ready">ready</span>
-                </div>
-                <div class="final-row">
-                  <span class="final-icon">▶</span>
-                  <span><span class="final-title">Demo video</span><span class="final-note">Explicit render status</span></span>
-                  <span class="ready">tracked</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-close" class="clip scene" data-start="22.2" data-duration="1.8" data-track-index="2">
-        <div class="scene-content">
-          <div class="closing">
-            <div class="panel closing-left">
-              <span class="closing-mark">P</span>
-              <div>
-                <p class="kicker">ProofPitch</p>
-                <h2 class="headline">Pitch assets with the proof trail still visible.</h2>
-              </div>
-            </div>
-            <div class="panel closing-right">
-              <div class="final-row">
-                <span class="final-icon">1</span>
-                <span><span class="final-title">Input</span><span class="final-note">Product URL, audience, launch goal</span></span>
-                <span class="ready">done</span>
-              </div>
-              <div class="final-row">
-                <span class="final-icon">2</span>
-                <span><span class="final-title">Review</span><span class="final-note">Approve claims before the deck</span></span>
-                <span class="ready">done</span>
-              </div>
-              <div class="final-row">
-                <span class="final-icon">3</span>
-                <span><span class="final-title">Ship</span><span class="final-note">Deck, demo state, launch drafts</span></span>
-                <span class="ready">done</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
 
     <script>
       window.__timelines = window.__timelines || {};
 
       const tl = gsap.timeline({ paused: true });
-
-      tl.to(".scan-line", { x: 2420, duration: 8, ease: "none", repeat: 2 }, 0);
-      tl.to(".timer-fill", { width: "100%", duration: 24, ease: "none" }, 0);
-
-      const scenes = [
-        {
-          id: "#scene-intro",
-          start: 0,
-          out: 3.55,
-          copy: "#scene-intro .body-copy, #scene-intro .section-note",
-          panels: "#scene-intro .panel, #scene-intro .status-card, #scene-intro .asset",
-        },
-        {
-          id: "#scene-claims",
-          start: 4,
-          out: 8.55,
-          copy: "#scene-claims .body-copy, #scene-claims .section-note",
-          panels: "#scene-claims .panel, #scene-claims .status-card, #scene-claims .asset",
-        },
-        {
-          id: "#scene-deck",
-          start: 9,
-          out: 13.55,
-          copy: "#scene-deck .body-copy, #scene-deck .section-note",
-          panels: "#scene-deck .panel, #scene-deck .status-card, #scene-deck .asset",
-        },
-        {
-          id: "#scene-video",
-          start: 14,
-          out: 18.55,
-          copy: "#scene-video .body-copy, #scene-video .section-note",
-          panels: "#scene-video .panel, #scene-video .status-card, #scene-video .asset",
-        },
-        {
-          id: "#scene-launch",
-          start: 19,
-          out: 22.35,
-          copy: "#scene-launch .body-copy, #scene-launch .section-note",
-          panels: "#scene-launch .panel, #scene-launch .status-card, #scene-launch .asset",
-        },
-        {
-          id: "#scene-close",
-          start: 22.2,
-          out: 23.75,
-          copy: "#scene-close .body-copy, #scene-close .section-note",
-          panels: "#scene-close .panel, #scene-close .status-card, #scene-close .asset",
-        },
-      ];
-
-      scenes.forEach((scene) => {
-        tl.set(scene.id, { opacity: 1 }, scene.start);
-        tl.from(`${scene.id} .kicker`, { y: 18, opacity: 0, duration: 0.35, ease: "power2.out" }, scene.start + 0.14);
-        tl.from(`${scene.id} .headline`, { y: 28, opacity: 0, duration: 0.55, ease: "power3.out" }, scene.start + 0.24);
-        const supportingText = gsap.utils.toArray(scene.copy);
-        if (supportingText.length > 0) {
-          tl.from(supportingText, { y: 18, opacity: 0, duration: 0.45, ease: "power2.out" }, scene.start + 0.45);
-        }
-        const panelTargets = gsap.utils.toArray(scene.panels);
-        if (panelTargets.length > 0) {
-          tl.from(panelTargets, {
-            y: 34,
-            opacity: 0,
-            scale: 0.985,
-            duration: 0.55,
-            ease: "power3.out",
-            stagger: 0.08,
-          }, scene.start + 0.58);
-        }
-        tl.to(`${scene.id} .scene-content`, { y: -18, opacity: 0, duration: 0.28, ease: "power2.in" }, scene.out);
-        tl.set(scene.id, { opacity: 0 }, scene.out + 0.3);
-      });
-
-      tl.from("#scene-claims .claim-row", {
-        x: -34,
-        opacity: 0,
-        duration: 0.42,
-        ease: "power2.out",
-        stagger: 0.12,
-      }, 4.75);
-
-      tl.from("#scene-claims .flow-step", {
-        x: 26,
-        opacity: 0,
-        duration: 0.42,
-        ease: "power2.out",
-        stagger: 0.11,
-      }, 5.2);
-
-      tl.from("#scene-deck .thumb", {
-        x: -24,
-        opacity: 0,
-        duration: 0.36,
-        ease: "power2.out",
-        stagger: 0.09,
-      }, 9.72);
-
-      tl.from("#scene-deck .visual-note", {
-        y: 22,
-        opacity: 0,
-        duration: 0.38,
-        ease: "power2.out",
-        stagger: 0.1,
-      }, 10.25);
-
-      tl.from("#scene-video .video-step", {
-        x: -26,
-        opacity: 0,
-        duration: 0.38,
-        ease: "power2.out",
-        stagger: 0.1,
-      }, 14.8);
-
-      tl.from("#scene-video .mini-card", {
-        y: 18,
-        opacity: 0,
-        duration: 0.34,
-        ease: "power2.out",
-        stagger: 0.08,
-      }, 15.28);
-
-      tl.fromTo("#scene-video .cursor", { x: -180, y: 130 }, { x: 0, y: 0, duration: 1.15, ease: "power2.inOut" }, 15.6);
-      tl.fromTo("#scene-video .click-ring", { opacity: 0, scale: 0.4 }, { opacity: 0.9, scale: 1.5, duration: 0.42, ease: "power2.out" }, 16.62);
-      tl.to("#scene-video .click-ring", { opacity: 0, scale: 2.1, duration: 0.38, ease: "power2.in" }, 17.05);
-
-      tl.from("#scene-launch .social-tab", {
-        y: 18,
-        opacity: 0,
-        duration: 0.32,
-        ease: "power2.out",
-        stagger: 0.08,
-      }, 19.8);
-
-      tl.from("#scene-launch .final-row, #scene-close .final-row", {
-        x: 28,
-        opacity: 0,
-        duration: 0.38,
-        ease: "power2.out",
-        stagger: 0.1,
-      }, 20.08);
-
-      tl.from("#scene-close .closing-mark", { scale: 0.86, opacity: 0, duration: 0.44, ease: "power2.out" }, 22.38);
+      tl.from(".browser-shell", { opacity: 0, y: 24, scale: 0.985, duration: 0.5, ease: "power3.out" }, 0.18);
+      tl.from("#side-rail", { opacity: 0, x: 28, duration: 0.5, ease: "power2.out" }, 0.34);
+      tl.from(".recording-badge", { opacity: 0, y: -14, duration: 0.38, ease: "power2.out" }, 0.7);
+      tl.from(".step", { opacity: 0, x: 18, duration: 0.34, ease: "power2.out", stagger: 0.08 }, 1.0);
 
       window.__timelines["main"] = tl;
     </script>

@@ -2,7 +2,7 @@
 
 ## Style Prompt
 
-Use ProofPitch's product UI language: pale green workspace canvas, dense founder-tool panels, square bordered cards, clear status labels, and restrained teal emphasis. The video should feel like a focused product demo for a source-backed pitch-pack generator, not a generic SaaS promo. Motion should be brisk, editorial, and precise, with UI states assembling into evidence, deck, video, and launch assets.
+Use ProofPitch's product UI language around a real browser recording: pale green workspace canvas, dense founder-tool panels, square bordered chrome, clear status labels, and restrained teal emphasis. The video should feel like a captured product walkthrough of the production app, not a generic SaaS promo or a recreated mock UI. Motion should be minimal and precise, because the real frontend recording is the source of truth.
 
 ## Colors
 
@@ -23,7 +23,8 @@ Use ProofPitch's product UI language: pale green workspace canvas, dense founder
 
 ## Motion Rules
 
-- Animate UI panels from their final CSS position with small `y`, `opacity`, and `scale` offsets.
+- Keep the real browser recording as the primary visual layer.
+- Animate only the outer chrome and explanatory captions from their final CSS position with small `y`, `opacity`, and `scale` offsets.
 - Keep transitions short: 0.35s to 0.7s with `power2` or `power3` easing.
 - Use finite ambient motion only; never infinite repeats.
 - The canvas grid may drift subtly, but product text and status labels must stay readable at all sampled frames.
@@ -31,6 +32,6 @@ Use ProofPitch's product UI language: pale green workspace canvas, dense founder
 ## What NOT to Do
 
 - Do not use neon, purple-blue gradients, or rounded marketing blobs.
-- Do not collapse pitch deck and demo video into the same asset; show their states separately.
-- Do not use unsupported metric claims.
+- Do not recreate the app UI by hand when a browser recording exists.
 - Do not hide the claim-review gate; it is the core product differentiator.
+- Do not use unsupported metric claims.
