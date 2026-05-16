@@ -275,11 +275,12 @@ async function installCursorOverlay(page: PlaywrightPage) {
           top: 0;
           z-index: 2147483647;
           pointer-events: none;
-          transform: translate(12vw, 78vh);
-          transition: transform 620ms cubic-bezier(.22,1,.36,1);
+          transform: translate3d(12vw, 78vh, 0);
+          transition: transform 860ms cubic-bezier(.16,1,.3,1);
           width: 42px;
           height: 52px;
           filter: drop-shadow(0 8px 14px rgba(0,0,0,.3));
+          will-change: transform;
         }
         .proofpitch-agent-ripple {
           position: fixed;
@@ -317,12 +318,12 @@ async function moveCursor(page: PlaywrightPage, clientPoint: { x: number; y: num
     .evaluate((point) => {
       document.getElementById("proofpitch-agent-cursor")?.style.setProperty(
         "transform",
-        `translate(${point.x}px, ${point.y}px)`,
+        `translate3d(${point.x}px, ${point.y}px, 0)`,
       );
     }, clientPoint)
     .catch(() => undefined);
-  await page.mouse.move(clientPoint.x, clientPoint.y, { steps: 18 }).catch(() => undefined);
-  await wait(680);
+  await page.mouse.move(clientPoint.x, clientPoint.y, { steps: 42 }).catch(() => undefined);
+  await wait(900);
 }
 
 async function markCursorClick(page: PlaywrightPage, clientPoint: { x: number; y: number }) {
@@ -585,13 +586,39 @@ async function scrollDemoPage(page: PlaywrightPage) {
   }));
 
   await moveCursor(page, point);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const start = window.scrollY;
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const target = Math.min(maxScroll, start + window.innerHeight * 0.82);
+        const distance = target - start;
+        const duration = Math.max(900, Math.min(1_450, Math.abs(distance) * 1.25));
+        const startTime = performance.now();
 
-  for (let index = 0; index < 4; index += 1) {
-    await page.mouse.wheel(0, 240);
-    await wait(220);
-  }
+        if (distance <= 0) {
+          resolve();
+          return;
+        }
 
-  await wait(500);
+        const easeInOutCubic = (progress: number) =>
+          progress < 0.5 ? 4 * progress ** 3 : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        const tick = (now: number) => {
+          const progress = Math.min(1, (now - startTime) / duration);
+
+          window.scrollTo(0, start + distance * easeInOutCubic(progress));
+
+          if (progress < 1) {
+            window.requestAnimationFrame(tick);
+          } else {
+            resolve();
+          }
+        };
+
+        window.requestAnimationFrame(tick);
+      }),
+  );
+  await wait(700);
 }
 
 async function runInstruction(page: PlaywrightPage, instruction: DemoInstruction): Promise<DemoInstructionRunResult> {
@@ -646,6 +673,7 @@ function enrichInstructions(instructions: DemoInstruction[]) {
 
 async function captureFrame({
   action = "capture",
+  captureImage = true,
   fileName,
   outputDir,
   page,
@@ -656,6 +684,7 @@ async function captureFrame({
   sourceUrl,
 }: {
   action?: ProductDemoScreenshot["action"];
+  captureImage?: boolean;
   fileName: string;
   outputDir: string;
   page: PlaywrightPage;
@@ -668,20 +697,24 @@ async function captureFrame({
   const filePath = path.join(outputDir, fileName);
   let url: string;
 
-  try {
-    await page.screenshot({
-      animations: "disabled",
-      path: filePath,
-      type: "jpeg",
-      quality: 84,
-      fullPage: false,
-      timeout: 12_000,
-    });
-    url = await screenshotToDataUrl(filePath);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to capture screenshot.";
+  if (!captureImage) {
+    url = placeholderScreenshotDataUrl(title, "Live browser recording is used for the final video.");
+  } else {
+    try {
+      await page.screenshot({
+        animations: "disabled",
+        path: filePath,
+        type: "jpeg",
+        quality: 84,
+        fullPage: false,
+        timeout: 12_000,
+      });
+      url = await screenshotToDataUrl(filePath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to capture screenshot.";
 
-    url = placeholderScreenshotDataUrl(title, message);
+      url = placeholderScreenshotDataUrl(title, message);
+    }
   }
 
   return {
@@ -736,6 +769,7 @@ export async function captureWebsiteScreenshots({
     screenshots.push(
       await captureFrame({
         action: consentStep ? "consent" : "open",
+        captureImage: false,
         fileName: "capture-1.jpg",
         outputDir,
         page,
@@ -756,6 +790,7 @@ export async function captureWebsiteScreenshots({
       screenshots.push(
         await captureFrame({
           action: instruction.action === "first-result" ? "first_result" : instruction.action,
+          captureImage: false,
           fileName: `capture-${index + 2}.jpg`,
           outputDir,
           page,
@@ -799,6 +834,7 @@ export async function captureWebsiteScreenshots({
         screenshots.push(
           await captureFrame({
             action: "scroll",
+            captureImage: false,
             fileName: `capture-${screenshots.length + 1}.jpg`,
             outputDir,
             page,
