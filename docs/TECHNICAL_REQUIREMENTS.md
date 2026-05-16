@@ -92,6 +92,7 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
 When enabled, the renderer can export the Slidev deck and render a Remotion MP4 from `demoVideo.renderProps`. The Vercel server runtime is also treated as an enabled render worker for the production route.
+Production Remotion renders launch a serverless Chromium pack through `@sparticuz/chromium-min`; set `PROOFPITCH_CHROMIUM_PACK_URL` only if the default hosted pack must be replaced.
 The interactive UI render action may request a local video render for the selected launch pack. The render route should prefer a server-side launch-pack lookup and may accept a full `launchPack` fallback when local serverless storage cannot find the id. Request bodies must not be able to force-enable local rendering; that remains controlled only by server environment.
 
 When local rendering is disabled, `/api/launch-packs/:id/render` must return `200`, keep `pitchDeck.renderState: "queued"`, and report `render.enabled: false`. It must not return a sign-in requirement.

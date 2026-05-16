@@ -146,6 +146,7 @@ Behavior:
 - Otherwise it uses the deck-render path and returns `{ "launchPack": ..., "pitchDeck": ..., "render": ..., "requiresSignIn": false }`.
 - Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`; production rendering is enabled by the Vercel server runtime.
 - Product-site capture is controlled by `PROOFPITCH_PLAYWRIGHT_CAPTURE`.
+- Production video rendering uses a serverless Chromium pack; override it with `PROOFPITCH_CHROMIUM_PACK_URL` when the default pack is unavailable.
 - Public video render requests prefer server-side lookup, but may include a full `launchPack` fallback when local serverless storage cannot find the id.
 - Public video render requests cannot set `force`; local rendering remains controlled only by server environment.
 - If Supabase admin env vars are configured, a ready MP4 is uploaded to the private `proofpitch-exports` bucket and returned as a signed URL.

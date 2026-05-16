@@ -61,6 +61,7 @@ The app can run locally without provider keys. In that mode it uses deterministi
 | `PROOFPITCH_PLAYWRIGHT_CAPTURE` | Optional | Enables product-site capture through Playwright when set to `1`. |
 | `PROOFPITCH_ENABLE_LOCAL_RENDER` | Optional | Enables local Slidev/Remotion rendering when set to `1`. |
 | `PROOFPITCH_RELEASE_ASSET_DIR` | Optional | Directory for generated local artifacts, defaulting to `.proofpitch/release-assets`. |
+| `PROOFPITCH_CHROMIUM_PACK_URL` | Optional | Overrides the Vercel Chromium pack URL used by production Remotion video rendering. |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Public site origin for generated links. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Optional | Supabase project URL for persistence/auth. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Supabase browser/client key. |

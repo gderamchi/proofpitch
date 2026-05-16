@@ -6,6 +6,9 @@ import path from "node:path";
 import { captureWebsiteScreenshots } from "./demo-video-capture";
 import type { DemoVideo, PitchDeck, ProductDemoScreenshot, RemotionRenderProps } from "./schemas";
 
+const DEFAULT_CHROMIUM_PACK_URL =
+  "https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar";
+
 type RenderReleaseArtifactsInput = {
   launchPackId: string;
   pitchDeck: PitchDeck;
@@ -67,6 +70,39 @@ function commandLine(command: string, args: string[]) {
 
 function renderWorkerEnabled() {
   return process.env.PROOFPITCH_ENABLE_LOCAL_RENDER === "1" || process.env.VERCEL === "1";
+}
+
+type RemotionBrowserLaunchOptions = {
+  browserExecutable?: string;
+  chromeMode?: "headless-shell";
+  chromiumOptions?: {
+    enableMultiProcessOnLinux?: boolean;
+    gl?: "swangle";
+  };
+};
+
+let cachedBrowserExecutable: string | undefined;
+
+async function remotionBrowserLaunchOptions(): Promise<RemotionBrowserLaunchOptions> {
+  if (!process.env.VERCEL && !process.env.PROOFPITCH_CHROMIUM_PACK_URL) {
+    return {};
+  }
+
+  if (!cachedBrowserExecutable) {
+    const { default: chromium } = await import("@sparticuz/chromium-min");
+    const chromiumPackUrl = process.env.PROOFPITCH_CHROMIUM_PACK_URL || DEFAULT_CHROMIUM_PACK_URL;
+
+    cachedBrowserExecutable = await chromium.executablePath(chromiumPackUrl);
+  }
+
+  return {
+    browserExecutable: cachedBrowserExecutable,
+    chromeMode: "headless-shell",
+    chromiumOptions: {
+      enableMultiProcessOnLinux: false,
+      gl: "swangle",
+    },
+  };
 }
 
 function escapeXml(value: string) {
@@ -141,11 +177,14 @@ async function renderDemoVideoWithRemotion({
   const previousCwd = process.cwd();
 
   try {
+    const browserLaunchOptions = await remotionBrowserLaunchOptions();
+
     if (process.env.VERCEL) {
       process.chdir(os.tmpdir());
     }
 
     const composition = await selectComposition({
+      ...browserLaunchOptions,
       id: compositionId,
       inputProps,
       serveUrl,
@@ -162,6 +201,7 @@ async function renderDemoVideoWithRemotion({
       overwrite: true,
       serveUrl,
       timeoutInMilliseconds: 120000,
+      ...browserLaunchOptions,
     });
   } finally {
     process.chdir(previousCwd);
