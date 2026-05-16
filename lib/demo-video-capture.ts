@@ -59,6 +59,11 @@ type PlaywrightBrowser = {
   }) => Promise<PlaywrightContext>;
 };
 
+const captureViewport = {
+  height: 900,
+  width: 1600,
+};
+
 type DemoInstruction =
   | {
       action: "click";
@@ -742,8 +747,8 @@ export async function captureWebsiteScreenshots({
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     deviceScaleFactor: 1,
-    recordVideo: { dir: recordingDir, size: { width: 1440, height: 1000 } },
-    viewport: { width: 1440, height: 1000 },
+    recordVideo: { dir: recordingDir, size: captureViewport },
+    viewport: captureViewport,
   });
   let contextClosed = false;
 

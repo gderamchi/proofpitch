@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { NextResponse } from "next/server";
 
-import { renderedDemoVideoPath } from "@/lib/release-renderer";
+import { renderedDemoVideoPath } from "@/lib/release-paths";
 
 export const runtime = "nodejs";
 

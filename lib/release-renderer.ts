@@ -3,6 +3,15 @@ import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { captureWebsiteScreenshots } from "./demo-video-capture";
+import { buildGradiumVoiceoverSegments } from "./gradium-voiceover";
+import {
+  outputDirForLaunchPack,
+  renderedBrowserRecordingPath,
+  renderedBrowserRecordingUrl,
+  renderedDemoVideoPath,
+  renderedDemoVideoUrl,
+  renderedVoiceoverSegmentUrl,
+} from "./release-paths";
 import type { DemoVideo, PitchDeck, RemotionRenderProps } from "./schemas";
 
 type RenderReleaseArtifactsInput = {
@@ -33,26 +42,6 @@ type RenderReleaseArtifactsResult = {
   error?: string;
   videoUrl?: string;
 };
-
-export function outputDirForLaunchPack(launchPackId: string) {
-  return path.join(process.cwd(), ".proofpitch", "release-assets", launchPackId);
-}
-
-export function renderedDemoVideoPath(launchPackId: string) {
-  return path.join(outputDirForLaunchPack(launchPackId), "demo-video.mp4");
-}
-
-export function renderedDemoVideoUrl(launchPackId: string) {
-  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/video`;
-}
-
-export function renderedBrowserRecordingPath(launchPackId: string) {
-  return path.join(outputDirForLaunchPack(launchPackId), "browser-recording.webm");
-}
-
-export function renderedBrowserRecordingUrl(launchPackId: string) {
-  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/recording`;
-}
 
 function absoluteUrl(baseUrl: string | undefined, urlPath: string) {
   return new URL(urlPath, baseUrl || "http://localhost:3000").toString();
@@ -110,14 +99,25 @@ async function withCapturedScreenshots(
     await copyFile(capture.recordingPath, recordingPath);
   }
 
+  const demoSteps = capture.steps.length ? capture.steps : renderProps.demoSteps;
+  const voiceover = await buildGradiumVoiceoverSegments({
+    outputDir,
+    steps: demoSteps,
+  });
+
   return {
     ...renderProps,
     browserRecordingUrl: recordingPath ? absoluteUrl(baseUrl, renderedBrowserRecordingUrl(launchPackId)) : undefined,
     screenshots: capture.screenshots,
-    demoSteps: capture.steps.length ? capture.steps : renderProps.demoSteps,
+    demoSteps,
+    voiceoverSegments: voiceover.segments.map((segment, index) => ({
+      text: segment.text,
+      url: segment.path ? absoluteUrl(baseUrl, renderedVoiceoverSegmentUrl(launchPackId, index + 1)) : undefined,
+    })),
     captions: [
       ...renderProps.captions,
       `Captured ${capture.screenshots.length} screen${capture.screenshots.length === 1 ? "" : "s"} for ${launchPackId}.`,
+      voiceover.error ? `Gradium voiceover skipped: ${voiceover.error}` : "Gradium voiceover segments prepared.",
     ].slice(0, 5),
   };
 }

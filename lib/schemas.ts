@@ -179,6 +179,14 @@ export const RemotionRenderPropsSchema = z.object({
   demoPath: z.string().optional(),
   screenshots: z.array(ProductDemoScreenshotSchema),
   demoSteps: z.array(z.string()).min(1),
+  voiceoverSegments: z
+    .array(
+      z.object({
+        text: z.string(),
+        url: z.string().optional(),
+      }),
+    )
+    .optional(),
   captions: z.array(z.string()),
 });
 

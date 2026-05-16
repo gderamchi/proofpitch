@@ -17,7 +17,7 @@ The app deliberately keeps the deck and product demo separate. The API can retur
 - Tavily supplies research sources for proof-backed claims.
 - Pioneer extracts entities and claim risk from nested `raw.result.data.entities` and `claim_risk`.
 
-Out of MVP scope: generated hero media, audio workflows, channel drafts, publishing metadata, and commercial UI.
+Out of MVP scope: generated hero media, channel drafts, publishing metadata, and commercial UI.
 
 ## Local Setup
 
@@ -49,14 +49,23 @@ PROOFPITCH_PLAYWRIGHT_CAPTURE=1
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
-The homepage also exposes a "Render demo video" action after a launch pack is generated. It captures the entered URL, passes the frames into the Remotion composition, and serves the MP4 from `/api/launch-packs/:id/video`.
+Optional Gradium narration for rendered demos:
+
+```bash
+GRADIUM_API_KEY=
+GRADIUM_VOICE_ID=YTpq7expH9539ERJ
+```
+
+`GRADIUM_VOICE_ID` defaults to an English voice when omitted. The render pipeline reads Gradium keys from the process environment or local env files, generates short voiceover segments per demo step, serves them from `/api/launch-packs/:id/voiceover/:segment`, and syncs them in Remotion.
+
+The homepage also exposes a "Render demo video" action after a launch pack is generated. It captures the entered URL as a real browser recording, adds subtle synced subtitles and optional Gradium voiceover, then serves the MP4 from `/api/launch-packs/:id/video`.
 
 The render action uses a lightweight demo-path agent. It can:
 
 - handle common consent banners such as "Accept all", "Tout accepter", or "Reject all";
 - follow simple user path instructions such as "search pricing", "click Contact", "open the first result", or "scroll down";
-- capture a frame after each step so the Remotion video shows an actual walkthrough instead of a static first page.
-The Remotion walkthrough is rendered as a longer 24-second video and can be opened full-size from the generated output card.
+- record the browser session in 16:9 so the Remotion video shows an actual walkthrough instead of a static first page.
+The Remotion walkthrough is rendered as a longer 24-second video with a subtle subtitle track and can be opened full-size from the generated output card.
 
 ## Main API
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Img, interpolate, OffthreadVideo, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 
 import type { ProductDemoScreenshot, RemotionRenderProps } from "@/lib/schemas";
 
@@ -72,12 +72,22 @@ function cursorTarget(screenshot?: ProductDemoScreenshot) {
   return { x: 35, y: 24 };
 }
 
-function actionLabel(screenshot?: ProductDemoScreenshot) {
-  if (!screenshot?.action) {
-    return "capture";
-  }
+function subtleStepLabel(step: string) {
+  return step
+    .replace(/^Opened\s+/i, "Opening ")
+    .replace(/^Clicked\s+/i, "Clicking ")
+    .replace(/^Searched for\s+/i, "Searching ")
+    .replace(/^Opened first result:\s*/i, "Opening first result: ")
+    .replace(/^Scrolled page:\s*/i, "Scrolling ")
+    .replace(/^Could not find\s+/i, "Looking for ")
+    .replace(/^Scrolling\s+scroll down,?/i, "Scrolling down")
+    .replace(/^Scrolling\s+continue scrolling through the page/i, "Scrolling the page")
+    .replaceAll('"', "")
+    .replace(/\.$/, "");
+}
 
-  return screenshot.action.split("_").join(" ");
+function voiceoverTextForStep(props: RemotionRenderProps, stepIndex: number, fallback: string) {
+  return props.voiceoverSegments?.[stepIndex]?.text ?? subtleStepLabel(fallback);
 }
 
 function CursorLayer({
@@ -222,6 +232,10 @@ export function ReleaseDemo(props: RemotionRenderProps) {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const subtitleOpacity = interpolate(localProgress, [0, 0.12, 0.86, 1], [0, 0.82, 0.82, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   const imageScale = 1.035 + localProgress * 0.045;
   const imageTranslateY =
     screenshot?.action === "scroll"
@@ -232,120 +246,97 @@ export function ReleaseDemo(props: RemotionRenderProps) {
   return (
     <AbsoluteFill
       style={{
-        background: "#f4efe6",
+        background: "#101418",
         color: "#111827",
-        fontFamily: "ui-serif, Georgia, Cambria, Times New Roman, serif",
+        fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
         overflow: "hidden",
       }}
     >
       <div
         style={{
           position: "absolute",
-          inset: 44,
-          display: "grid",
-          gridTemplateColumns: "0.62fr 1.38fr",
-          gap: 36,
-          alignItems: "stretch",
+          inset: 0,
+          background: "#0f172a",
+        }}
+      >
+        {hasBrowserRecording ? (
+          <OffthreadVideo
+            muted
+            src={props.browserRecordingUrl as string}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              background: "#0f172a",
+            }}
+          />
+        ) : screenshot ? (
+          <Img
+            src={screenshot.url}
+            alt={screenshot.alt}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: 0.94,
+              transform: `scale(${imageScale}) translateY(${imageTranslateY}px)`,
+              transformOrigin: "50% 35%",
+            }}
+          />
+        ) : null}
+        {hasBrowserRecording ? null : <CursorLayer localProgress={localProgress} screenshot={screenshot} />}
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          left: 56,
+          right: 56,
+          bottom: 34,
+          display: "flex",
+          justifyContent: "center",
+          pointerEvents: "none",
         }}
       >
         <div
           style={{
-            border: "2px solid #111827",
-            background: "#fffaf0",
-            padding: 42,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
+            maxWidth: 1080,
+            borderRadius: 8,
+            background: "rgba(15,23,42,0.62)",
+            boxShadow: "0 10px 32px rgba(0,0,0,0.18)",
+            color: "rgba(255,255,255,0.92)",
+            fontSize: 25,
+            fontWeight: 500,
+            lineHeight: 1.24,
+            opacity: subtitleOpacity,
+            padding: "11px 18px 12px",
+            textAlign: "center",
           }}
         >
-          <div>
-            <div style={{ fontSize: 30, letterSpacing: 0, textTransform: "uppercase" }}>
-              {hasBrowserRecording ? "live browser recording" : actionLabel(screenshot)}
-            </div>
-            <h1 style={{ margin: "42px 0 0", fontSize: 66, lineHeight: 0.96, maxWidth: 560 }}>
-              Watching the agent use the site.
-            </h1>
-            <p style={{ marginTop: 28, fontSize: 28, lineHeight: 1.28, maxWidth: 560 }}>
-              {props.oneLiner}
-            </p>
-          </div>
-          <div>
-            <div style={{ fontSize: 22, color: "#64748b" }}>{props.sourceUrl}</div>
-            <div
-              style={{
-                marginTop: 18,
-                height: 12,
-                background: "#d6d3d1",
-                overflow: "hidden",
-              }}
-            >
-              <div style={{ width: `${progress}%`, height: "100%", background: "#0f766e" }} />
-            </div>
-          </div>
+          {voiceoverTextForStep(props, stepIndex, currentStep)}
         </div>
-
-        <div style={{ display: "grid", gridTemplateRows: "1fr auto", gap: 24 }}>
-          <div
-            style={{
-              border: "2px solid #111827",
-              background: "#111827",
-              overflow: "hidden",
-              position: "relative",
-            }}
+      </div>
+      {props.voiceoverSegments?.map((segment, index) =>
+        segment.url ? (
+          <Sequence
+            key={`${segment.url}-${index}`}
+            from={Math.round(index * framesPerStep)}
+            durationInFrames={Math.ceil(framesPerStep)}
           >
-            {hasBrowserRecording ? (
-              <OffthreadVideo
-                muted
-                src={props.browserRecordingUrl as string}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  background: "#d1d5db",
-                }}
-              />
-            ) : screenshot ? (
-              <Img
-                src={screenshot.url}
-                alt={screenshot.alt}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  opacity: 0.92,
-                  transform: `scale(${imageScale}) translateY(${imageTranslateY}px)`,
-                  transformOrigin: "50% 35%",
-                }}
-              />
-            ) : null}
-            {hasBrowserRecording ? null : <CursorLayer localProgress={localProgress} screenshot={screenshot} />}
-            <div
-              style={{
-                position: "absolute",
-                left: 24,
-                right: 24,
-                bottom: 24,
-                background: "rgba(244,239,230,0.92)",
-                border: "2px solid #111827",
-                padding: 18,
-                fontSize: 30,
-              }}
-            >
-              {screenshot?.title ?? "Product capture required"}
-            </div>
-          </div>
-          <div
-            style={{
-              border: "2px solid #111827",
-              background: "#fffaf0",
-              padding: 26,
-              fontSize: 34,
-              lineHeight: 1.25,
-            }}
-          >
-            {stepIndex + 1}. {currentStep}
-          </div>
-        </div>
+            <Audio src={segment.url} volume={0.94} />
+          </Sequence>
+        ) : null,
+      )}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 4,
+          background: "rgba(255,255,255,0.16)",
+        }}
+      >
+        <div style={{ width: `${progress}%`, height: "100%", background: "rgba(45,212,191,0.82)" }} />
       </div>
     </AbsoluteFill>
   );
