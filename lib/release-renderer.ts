@@ -131,7 +131,6 @@ async function renderDemoVideoWithRemotion({
     import("@remotion/renderer"),
   ]);
   const inputProps = renderProps as unknown as Record<string, unknown>;
-  const binariesDirectory = path.join(os.tmpdir(), ".remotion-binaries");
   const serveUrl = await bundle({
     entryPoint: path.join(process.cwd(), "remotion", "index.tsx"),
     outDir: path.join(outputDir, "remotion-bundle"),
@@ -140,7 +139,6 @@ async function renderDemoVideoWithRemotion({
     rspack: false,
   });
   const composition = await selectComposition({
-    binariesDirectory,
     id: compositionId,
     inputProps,
     serveUrl,
@@ -148,7 +146,6 @@ async function renderDemoVideoWithRemotion({
   });
 
   await renderMedia({
-    binariesDirectory,
     codec: "h264",
     composition,
     concurrency: 1,
