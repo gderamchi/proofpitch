@@ -25,6 +25,7 @@ const renderRouteIncludes = [
   "./node_modules/@xtuc/**/*",
   "./node_modules/mediabunny/**/*",
   "./node_modules/remotion/**/*",
+  "./node_modules/zod/**/*",
   "./remotion/**/*",
 ];
 const renderRouteExcludes = [
