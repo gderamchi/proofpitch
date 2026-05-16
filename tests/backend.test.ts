@@ -9,6 +9,7 @@ import {
   PitchPackSchema,
   PitchDeckSchema,
   RemotionRenderPropsSchema,
+  type LaunchPack,
   type PitchPack,
 } from "../lib/schemas";
 
@@ -62,6 +63,81 @@ function buildPitchPack(rawInput = "ProofPitch turns notes into verified pitch p
     },
     risks: ["Verification is evidence-aided, not a legal guarantee."],
     nextSteps: ["Connect Supabase and export Markdown."],
+  };
+}
+
+function buildSocialDraftInput(
+  overrides: Partial<
+    Pick<
+      LaunchPack,
+      | "sourceUrl"
+      | "productName"
+      | "targetAudience"
+      | "launchGoal"
+      | "claimReview"
+      | "demoVideo"
+      | "pitchDeck"
+      | "pitchPack"
+    >
+  > = {},
+) {
+  const pitchPack = buildPitchPack();
+  const base: Pick<
+    LaunchPack,
+    | "sourceUrl"
+    | "productName"
+    | "targetAudience"
+    | "launchGoal"
+    | "claimReview"
+    | "demoVideo"
+    | "pitchDeck"
+    | "pitchPack"
+  > = {
+    sourceUrl: "https://example.com",
+    productName: "ProofPitch",
+    targetAudience: "Founder-led B2B teams",
+    launchGoal: "Release with a pitch deck and product demo video",
+    claimReview: {
+      status: "approved",
+      acceptedClaimIds: ["claim-1"],
+      rejectedClaimIds: ["claim-2"],
+    },
+    demoVideo: {
+      status: "ready",
+      url: "https://assets.test/demo-video.mp4",
+      durationSeconds: 24,
+      uploadStatus: "uploaded",
+      renderer: "remotion",
+      compositionId: "ProofPitchProductDemo",
+    },
+    pitchDeck: {
+      status: "ready",
+      format: "slidev",
+      title: "ProofPitch release deck",
+      slideCount: 6,
+      renderState: "ready",
+      deckMode: "sales",
+      outline: {
+        status: "ready",
+        deckMode: "sales",
+        acceptedClaimIds: ["claim-1"],
+        slides: [],
+      },
+      markdown: "---\ntheme: default\n---\n# ProofPitch\n",
+      exports: [
+        {
+          format: "pdf",
+          status: "ready",
+          signedUrl: "https://assets.test/pitch-deck.pdf",
+        },
+      ],
+    },
+    pitchPack,
+  };
+
+  return {
+    ...base,
+    ...overrides,
   };
 }
 
@@ -738,6 +814,49 @@ describe("backend contracts", () => {
     expect(assets.demoVideo.renderProps?.demoPath).toBeUndefined();
   });
 
+  it("builds launch social drafts with video asset metadata and safe copy limits", async () => {
+    const { buildSocialDrafts } = await import("../lib/social-drafts");
+    const drafts = buildSocialDrafts(buildSocialDraftInput());
+    const serialized = JSON.stringify(drafts);
+
+    expect(drafts.assets.video).toMatchObject({
+      status: "ready",
+      url: "https://assets.test/demo-video.mp4",
+      format: "mp4",
+    });
+    expect(drafts.x.status).toBe("ready");
+    expect(drafts.linkedin.status).toBe("ready");
+    expect(drafts.productHunt.status).toBe("manual_step");
+    expect(drafts.x.post.length).toBeLessThanOrEqual(280);
+    expect(drafts.productHunt.tagline.length).toBeLessThanOrEqual(60);
+    expect(drafts.productHunt.description.length).toBeLessThanOrEqual(500);
+    expect(serialized).not.toContain("40%");
+    expect(serialized).not.toContain("improves conversion");
+  });
+
+  it("marks launch social drafts as needing video before the MP4 is rendered", async () => {
+    const { buildSocialDrafts } = await import("../lib/social-drafts");
+    const input = buildSocialDraftInput({
+      demoVideo: {
+        status: "pending",
+        durationSeconds: 0,
+        uploadStatus: "blocked_by_provider_review",
+        renderer: "remotion",
+        compositionId: "ProofPitchProductDemo",
+      },
+    });
+    const drafts = buildSocialDrafts(input);
+
+    expect(drafts.assets.video).toMatchObject({
+      status: "pending",
+      format: "mp4",
+    });
+    expect(drafts.assets.video.url).toBeUndefined();
+    expect(drafts.x.status).toBe("needs_video");
+    expect(drafts.linkedin.status).toBe("needs_video");
+    expect(drafts.productHunt.status).toBe("needs_video");
+  });
+
   it("keeps the local renderer disabled unless explicitly enabled and supports dry-run commands", async () => {
     const { buildReleaseAssets } = await import("../lib/release-assets");
     const { renderReleaseArtifacts } = await import("../lib/release-renderer");
@@ -839,6 +958,8 @@ describe("local backend flow", () => {
       compositionId: "ProofPitchProductDemo",
       uploadStatus: "blocked_by_provider_review",
     });
+    expect(created.socialDrafts?.x.status).toBe("needs_video");
+    expect(created.socialDrafts?.assets.video.format).toBe("mp4");
     expect(Object.keys(created.providers)).toEqual(["openai", "tavily", "pioneer"]);
     expect(Object.keys(created).sort()).toEqual([
       "captions",
@@ -856,6 +977,7 @@ describe("local backend flow", () => {
       "productName",
       "providers",
       "screenshots",
+      "socialDrafts",
       "sourceUrl",
       "status",
       "targetAudience",

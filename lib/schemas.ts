@@ -239,6 +239,79 @@ export const DemoVideoSchema = z.object({
   error: z.string().optional(),
 });
 
+export const SocialDraftStatusSchema = z.enum(["ready", "needs_video", "needs_deck", "manual_step"]);
+export const SocialDraftVideoAssetSchema = z.object({
+  status: DemoVideoSchema.shape.status,
+  url: z.string().optional(),
+  format: z.literal("mp4"),
+  usageByPlatform: z.object({
+    x: z.string(),
+    linkedin: z.string(),
+    productHunt: z.string(),
+  }),
+});
+
+export const SocialDraftDeckAssetSchema = z.object({
+  status: z.enum(["pending", "ready", "failed"]),
+  url: z.string().optional(),
+  format: z.literal("pdf"),
+  usageByPlatform: z.object({
+    x: z.string(),
+    linkedin: z.string(),
+    productHunt: z.string(),
+  }),
+});
+
+export const XSocialDraftSchema = z.object({
+  platform: z.literal("x"),
+  status: SocialDraftStatusSchema,
+  post: z.string().min(1).max(280),
+  thread: z.array(z.string().min(1).max(280)),
+  hashtags: z.array(z.string().min(2).max(40)),
+  cta: z.string().min(1).max(180),
+  composerUrl: z.string(),
+  videoNote: z.string().min(1).max(240),
+  deckNote: z.string().min(1).max(240),
+});
+
+export const LinkedInSocialDraftSchema = z.object({
+  platform: z.literal("linkedin"),
+  status: SocialDraftStatusSchema,
+  hook: z.string().min(1).max(240),
+  body: z.string().min(1).max(1800),
+  cta: z.string().min(1).max(240),
+  post: z.string().min(1).max(3000),
+  composerUrl: z.string(),
+  videoNote: z.string().min(1).max(280),
+  deckNote: z.string().min(1).max(280),
+});
+
+export const ProductHuntSocialDraftSchema = z.object({
+  platform: z.literal("product_hunt"),
+  status: SocialDraftStatusSchema,
+  productName: z.string().min(1).max(80),
+  tagline: z.string().min(1).max(60),
+  description: z.string().min(1).max(500),
+  firstComment: z.string().min(1).max(1800),
+  makerNote: z.string().min(1).max(500),
+  launchTags: z.array(z.string().min(1).max(40)).min(1).max(3),
+  mediaChecklist: z.array(z.string().min(1).max(180)),
+  videoNote: z.string().min(1).max(280),
+  submitUrl: z.string(),
+});
+
+export const SocialDraftsSchema = z.object({
+  generatedAt: z.string(),
+  assets: z.object({
+    productUrl: z.string(),
+    video: SocialDraftVideoAssetSchema,
+    deck: SocialDraftDeckAssetSchema,
+  }),
+  x: XSocialDraftSchema,
+  linkedin: LinkedInSocialDraftSchema,
+  productHunt: ProductHuntSocialDraftSchema,
+});
+
 export const LaunchPackSchema = z.object({
   id: z.string(),
   organizationId: z.string().optional(),
@@ -260,6 +333,7 @@ export const LaunchPackSchema = z.object({
   demoVideo: DemoVideoSchema,
   pitchDeck: PitchDeckSchema,
   launchChecklist: z.array(z.string()),
+  socialDrafts: SocialDraftsSchema.optional(),
   pitchPack: PitchPackSchema,
   providers: ProviderReportsSchema,
   createdAt: z.string(),
@@ -296,6 +370,12 @@ export const RenderLaunchVideoRequestSchema = z
     launchPack: LaunchPackSchema.optional(),
     renderDeck: z.literal(false).optional(),
     renderVideo: z.literal(true),
+  })
+  .strict();
+
+export const RefreshSocialDraftsRequestSchema = z
+  .object({
+    launchPack: LaunchPackSchema.optional(),
   })
   .strict();
 
@@ -347,12 +427,20 @@ export type PitchDeck = z.infer<typeof PitchDeckSchema>;
 export type ProductDemoScreenshot = z.infer<typeof ProductDemoScreenshotSchema>;
 export type RemotionRenderProps = z.infer<typeof RemotionRenderPropsSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
+export type SocialDraftStatus = z.infer<typeof SocialDraftStatusSchema>;
+export type SocialDraftVideoAsset = z.infer<typeof SocialDraftVideoAssetSchema>;
+export type SocialDraftDeckAsset = z.infer<typeof SocialDraftDeckAssetSchema>;
+export type XSocialDraft = z.infer<typeof XSocialDraftSchema>;
+export type LinkedInSocialDraft = z.infer<typeof LinkedInSocialDraftSchema>;
+export type ProductHuntSocialDraft = z.infer<typeof ProductHuntSocialDraftSchema>;
+export type SocialDrafts = z.infer<typeof SocialDraftsSchema>;
 export type LaunchPack = z.infer<typeof LaunchPackSchema>;
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
 export type UpdatePitchPackRequest = z.infer<typeof UpdatePitchPackRequestSchema>;
 export type ApproveDeckOutlineRequest = z.infer<typeof ApproveDeckOutlineRequestSchema>;
 export type RenderLaunchDeckRequest = z.infer<typeof RenderLaunchDeckRequestSchema>;
 export type RenderLaunchVideoRequest = z.infer<typeof RenderLaunchVideoRequestSchema>;
+export type RefreshSocialDraftsRequest = z.infer<typeof RefreshSocialDraftsRequestSchema>;
 
 export const pitchPackJsonSchema = {
   type: "object",
