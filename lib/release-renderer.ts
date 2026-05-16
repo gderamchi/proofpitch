@@ -10,6 +10,7 @@ import {
   renderedBrowserRecordingUrl,
   renderedDemoVideoPath,
   renderedDemoVideoUrl,
+  renderedPitchDeckPdfPath,
   renderedVoiceoverSegmentUrl,
 } from "./release-paths";
 import type { DemoVideo, PitchDeck, ProductDemoScreenshot, RemotionRenderProps } from "./schemas";
@@ -216,7 +217,7 @@ export async function renderReleaseArtifacts({
 
   const outputDir = outputDirForLaunchPack(launchPackId);
   const deckPath = path.join(outputDir, "pitch-deck.md");
-  const deckPdfPath = path.join(outputDir, "pitch-deck.pdf");
+  const deckPdfPath = renderedPitchDeckPdfPath(launchPackId);
   const deckPngPath = path.join(outputDir, "pitch-deck.png");
   const propsPath = path.join(outputDir, "remotion-props.json");
   const videoPath = renderedDemoVideoPath(launchPackId);

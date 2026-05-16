@@ -149,13 +149,11 @@ function buildDemoVideo({
 
   return DemoVideoSchema.parse({
     status: "pending",
-    uploadStatus: "blocked_by_provider_review",
+    uploadStatus: "pending",
     durationSeconds: 120,
     renderer: "remotion",
     compositionId: REMOTION_COMPOSITION_ID,
     renderProps,
-    error:
-      "Demo video is ready to render. Use the Remotion render action to capture the site and assemble the MP4.",
   });
 }
 

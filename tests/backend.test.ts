@@ -447,6 +447,9 @@ describe("backend contracts", () => {
     expect(compiled.markdown).toContain("theme: default");
     expect(compiled.markdown).toContain("---");
     expect(compiled.markdown).toContain("<!--");
+    expect(compiled.markdown).toContain('<section class="pp-slide pp-cover">');
+    expect(compiled.markdown).toContain('class: "proofpitch-slide proofpitch-proof"');
+    expect(compiled.markdown.match(/<style>/g)?.length).toBe(outline.slides.length);
     expect(compiled.markdown).toContain("https://assets.test/workflow.png");
     expect(compiled.markdown).toContain("ProofPitch creates a claim ledger.");
     expect(compiled.markdown).not.toContain("improves conversion by 40%");
@@ -736,10 +739,10 @@ describe("backend contracts", () => {
       renderer: "remotion",
       compositionId: "ProofPitchProductDemo",
       status: "pending",
-      uploadStatus: "blocked_by_provider_review",
+      uploadStatus: "pending",
     });
     expect(assets.demoVideo.url).toBeUndefined();
-    expect(assets.demoVideo.error).toContain("Remotion render action");
+    expect(assets.demoVideo.error).toBeUndefined();
     expect(assets.demoVideo.renderProps?.demoSteps.join(" ")).toContain("Paste context");
     expect(assets.demoVideo.renderProps?.demoPath).toBeUndefined();
   });
@@ -838,12 +841,13 @@ describe("local backend flow", () => {
     expect(outlined?.status).toBe("completed");
     expect(outlined?.claimReview.status).toBe("approved");
     expect(outlined?.pitchDeck.status).toBe("ready");
-    expect(outlined?.pitchDeck.markdown).toContain("# ProofPitch");
+    expect(outlined?.pitchDeck.markdown).toContain("proofpitch-slide");
+    expect(outlined?.pitchDeck.markdown).toContain('<h1 class="pp-title">ProofPitch</h1>');
     expect(outlined?.pitchDeck.markdown).not.toContain("improves conversion by 40%");
     expect(created.demoVideo).toMatchObject({
       renderer: "remotion",
       compositionId: "ProofPitchProductDemo",
-      uploadStatus: "blocked_by_provider_review",
+      uploadStatus: "pending",
     });
     expect(Object.keys(created.providers)).toEqual(["openai", "tavily", "pioneer"]);
     expect(Object.keys(created).sort()).toEqual([
@@ -1019,6 +1023,31 @@ describe("local backend flow", () => {
     );
 
     expect(fallbackResponse.status).toBe(404);
+  });
+
+  it("serves locally rendered deck PDFs as browser downloads", async () => {
+    const { mkdir, mkdtemp, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const outputRoot = await mkdtemp(path.join(tmpdir(), "proofpitch-test-"));
+    const launchPackId = "deck-route-1";
+
+    vi.stubEnv("PROOFPITCH_OUTPUT_DIR", outputRoot);
+    await mkdir(path.join(outputRoot, ".proofpitch", "release-assets", launchPackId), { recursive: true });
+    await writeFile(
+      path.join(outputRoot, ".proofpitch", "release-assets", launchPackId, "pitch-deck.pdf"),
+      Buffer.from("%PDF-1.4\n"),
+    );
+
+    const { GET: getDeck } = await import("../app/api/launch-packs/[id]/deck/route");
+    const response = await getDeck(
+      new Request(`https://proofpitch.test/api/launch-packs/${launchPackId}/deck?download=1`),
+      { params: Promise.resolve({ id: launchPackId }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("content-disposition")).toContain("attachment");
   });
 
   it("creates repeated local packs without quota blocking", async () => {

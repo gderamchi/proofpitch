@@ -158,6 +158,18 @@ function isImageUrl(url?: string) {
   return Boolean(url?.match(/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i) || url?.startsWith("data:image/"));
 }
 
+function visibleDemoVideoError(error?: string) {
+  if (!error || /render action/i.test(error)) {
+    return null;
+  }
+
+  return error;
+}
+
+function localDeckPdfUrl(launchPackId: string, download = false) {
+  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/deck${download ? "?download=1" : ""}`;
+}
+
 function SlideVisualPanel({
   slide,
   lines,
@@ -300,12 +312,13 @@ function SlideCanvas({
   const lines = bodyLines(slide.body);
   const cover = slide.layout === "cover";
   const proof = slide.layout === "proof";
-  const displayLines = lines.slice(0, proof ? 2 : cover ? 3 : 4);
+  const displayLineLimit = proof ? 3 : cover ? 2 : slide.layout === "two_column" ? 3 : 3;
+  const displayLines = lines.slice(0, displayLineLimit);
 
   return (
     <div
       className={`relative aspect-video overflow-hidden border-2 ${slideTone(slide.layout)} ${
-        compact ? "p-2" : "p-5 sm:p-6"
+        compact ? "p-2" : "p-4 sm:p-5"
       }`}
     >
       <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,#111827_1px,transparent_1px),linear-gradient(#111827_1px,transparent_1px)] [background-size:28px_28px]" />
@@ -319,7 +332,7 @@ function SlideCanvas({
           </span>
         </div>
 
-        <div className={`grid min-h-0 flex-1 gap-3 ${compact ? "" : cover ? "grid-cols-[1fr_0.52fr]" : "grid-cols-[1fr_0.72fr]"}`}>
+        <div className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${compact ? "" : cover ? "grid-cols-[minmax(0,1fr)_minmax(120px,0.48fr)]" : "grid-cols-[minmax(0,1fr)_minmax(150px,0.58fr)]"}`}>
           <div className="min-w-0 self-center">
             <p
               className={`${compact ? "mb-1 text-[8px]" : "mb-3 text-[10px]"} font-semibold uppercase tracking-normal ${
@@ -330,7 +343,7 @@ function SlideCanvas({
             </p>
             <h3
               className={`font-semibold leading-tight ${
-                compact ? "line-clamp-2 text-[13px]" : cover ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"
+                compact ? "line-clamp-2 text-[13px]" : cover ? "text-3xl" : "text-xl"
               }`}
             >
               {slide.title}
@@ -340,14 +353,14 @@ function SlideCanvas({
                 compact
                   ? "hidden"
                   : proof
-                    ? "text-[11px] leading-4 text-stone-800"
+                    ? "text-[10px] leading-3 text-stone-800"
                     : cover
-                      ? "text-sm leading-6 text-white/85"
-                      : "text-xs leading-5 text-stone-700"
+                      ? "text-xs leading-5 text-white/85"
+                      : "text-[11px] leading-4 text-stone-700"
               }`}
             >
               {displayLines.map((line) => (
-                <p key={line} className={proof || line.length > 126 ? "line-clamp-2" : undefined}>
+                <p key={line} className={proof || cover || line.length > 96 ? "line-clamp-2" : undefined}>
                   {proof ? "- " : ""}
                   {line}
                 </p>
@@ -479,6 +492,9 @@ function OutputPreview({
 
   const outlineReady = launchPack.pitchDeck.outline.status === "ready";
   const pdfExport = launchPack.pitchDeck.exports.find((item) => item.format === "pdf");
+  const demoVideoError = visibleDemoVideoError(launchPack.demoVideo.error);
+  const pdfPreviewUrl = pdfExport?.signedUrl ?? (pdfExport?.path ? localDeckPdfUrl(launchPack.id) : null);
+  const pdfDownloadUrl = pdfExport?.signedUrl ?? (pdfExport?.path ? localDeckPdfUrl(launchPack.id, true) : null);
   const acceptedSet = new Set(acceptedClaimIds);
   const canApprove = acceptedClaimIds.length > 0 && !outlineReady;
   const slides = launchPack.pitchDeck.outline.slides;
@@ -532,14 +548,6 @@ function OutputPreview({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        {Object.entries(launchPack.providers).map(([provider, report]) => (
-          <div key={provider} className={`border px-3 py-2 text-xs font-semibold ${statusTone(report.state)}`}>
-            {provider}: {report.state}
-          </div>
-        ))}
-      </div>
-
       {launchPack.demoVideo.url ? (
         <div className="grid gap-3">
           <video
@@ -572,10 +580,10 @@ function OutputPreview({
         </div>
       )}
 
-      {launchPack.demoVideo.error && !launchPack.demoVideo.url ? (
+      {demoVideoError && !launchPack.demoVideo.url ? (
         <div className="flex gap-3 border border-amber-800 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
           <AlertCircle size={16} className="mt-1 shrink-0" />
-          {launchPack.demoVideo.error}
+          {demoVideoError}
         </div>
       ) : null}
 
@@ -676,10 +684,10 @@ function OutputPreview({
               {isRendering ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
               Render PDF
             </button>
-            {pdfExport?.signedUrl ? (
+            {pdfDownloadUrl ? (
               <a
-                href={pdfExport.signedUrl}
-                download
+                href={pdfDownloadUrl}
+                download={`${slugFilename(launchPack.productName)}-${launchPack.deckMode}.pdf`}
                 className="inline-flex items-center gap-2 border border-stone-900 bg-white px-4 py-3 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
               >
                 <Download size={16} />
@@ -687,16 +695,12 @@ function OutputPreview({
               </a>
             ) : null}
           </div>
-          {pdfExport?.signedUrl ? (
+          {pdfPreviewUrl ? (
             <iframe
-              src={pdfExport.signedUrl}
+              src={pdfPreviewUrl}
               title={`${launchPack.productName} pitch deck PDF preview`}
               className="h-56 w-full border border-stone-300 bg-white"
             />
-          ) : pdfExport?.path ? (
-            <p className="border border-stone-300 bg-[#f8fbf8] p-3 text-xs leading-5 text-stone-600">
-              PDF rendered locally at {pdfExport.path}
-            </p>
           ) : null}
           {launchPack.pitchDeck.markdown ? (
             <details className="border border-stone-300 bg-[#f8fbf8] p-3 text-xs leading-5 text-stone-700">

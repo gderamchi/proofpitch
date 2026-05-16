@@ -117,12 +117,13 @@ function voiceoverFramesForSegment(segment: VoiceoverSegment, fps: number) {
 }
 
 function voiceoverTimeline(segments: VoiceoverSegment[], fps: number, durationInFrames: number) {
-  const gapFrames = Math.round(fps * 1.1);
-  let cursor = Math.round(fps * 0.4);
+  const gapFrames = Math.round(fps * 0.7);
+  const tailFrames = Math.round(fps * 0.65);
+  let cursor = Math.round(fps * 0.55);
 
   return segments
     .map((segment) => {
-      const durationInFramesForSegment = voiceoverFramesForSegment(segment, fps) + Math.ceil(gapFrames * 0.35);
+      const durationInFramesForSegment = voiceoverFramesForSegment(segment, fps) + tailFrames;
       const from = cursor;
       const end = from + durationInFramesForSegment;
 
@@ -285,7 +286,7 @@ export function ReleaseDemo(props: RemotionRenderProps) {
     extrapolateRight: "clamp",
   });
   const subtitleOpacity = activeVoiceover
-    ? interpolate(frame, [activeVoiceover.from, activeVoiceover.from + fps * 0.25, activeVoiceover.end - fps * 0.4, activeVoiceover.end], [0, 0.86, 0.86, 0], {
+    ? interpolate(frame, [activeVoiceover.from, activeVoiceover.from + fps * 0.18, activeVoiceover.end - fps * 0.18, activeVoiceover.end], [0, 0.86, 0.86, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       })

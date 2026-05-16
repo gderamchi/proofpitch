@@ -15,6 +15,14 @@ export function renderedDemoVideoUrl(launchPackId: string) {
   return `/api/launch-packs/${encodeURIComponent(launchPackId)}/video`;
 }
 
+export function renderedPitchDeckPdfPath(launchPackId: string) {
+  return path.join(outputDirForLaunchPack(launchPackId), "pitch-deck.pdf");
+}
+
+export function renderedPitchDeckPdfUrl(launchPackId: string) {
+  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/deck`;
+}
+
 export function renderedBrowserRecordingPath(launchPackId: string) {
   return path.join(outputDirForLaunchPack(launchPackId), "browser-recording.webm");
 }
