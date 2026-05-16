@@ -32,6 +32,8 @@ The model must not emit arbitrary Slidev, Vue, or executable markdown. The serve
 
 The server then compiles that outline into Slidev markdown using the fixed ProofPitch template. Initial launch-pack generation returns `pitchDeck.status: "pending"` until claims are approved through `/api/launch-packs/:id/outline`.
 
+After approval, the client renders the structured outline as visual 16:9 slide previews with thumbnail selection and previous/next navigation. The generated Slidev markdown remains available as a secondary technical artifact through copy/download actions; users should not need to read raw markdown to understand the deck.
+
 ## Providers
 
 ### OpenAI

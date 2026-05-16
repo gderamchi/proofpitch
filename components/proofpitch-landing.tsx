@@ -1,11 +1,20 @@
 "use client";
 
-import { AlertCircle, ArrowRight, CheckCircle2, Clipboard, Download, FileText, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clipboard,
+  Download,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
 import { renderPitchPackMarkdown } from "@/lib/markdown-export";
-import type { DeckMode, LaunchPack } from "@/lib/schemas";
+import type { DeckMode, DeckSlideSpec, LaunchPack } from "@/lib/schemas";
 
 const sampleInput = {
   sourceUrl: "https://example.com",
@@ -67,6 +76,190 @@ function statusTone(status: string) {
   return "border-amber-800 bg-amber-50 text-amber-950";
 }
 
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function slugFilename(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80) || "proofpitch-deck";
+}
+
+function slideTone(layout: DeckSlideSpec["layout"]) {
+  if (layout === "proof") {
+    return "border-teal-900 bg-[#f2fbf7]";
+  }
+
+  if (layout === "risks") {
+    return "border-amber-900 bg-[#fff9eb]";
+  }
+
+  if (layout === "demo") {
+    return "border-sky-900 bg-[#f1f8fb]";
+  }
+
+  if (layout === "cover") {
+    return "border-stone-950 bg-stone-950 text-white";
+  }
+
+  return "border-stone-950 bg-white";
+}
+
+function bodyLines(body: string) {
+  return body
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?= - )/g))
+    .map((line) => line.replace(/^-\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function SlideCanvas({
+  slide,
+  index,
+  total,
+  productName,
+  deckMode,
+  compact = false,
+}: {
+  slide: DeckSlideSpec;
+  index: number;
+  total: number;
+  productName: string;
+  deckMode: DeckMode;
+  compact?: boolean;
+}) {
+  const lines = bodyLines(slide.body);
+  const cover = slide.layout === "cover";
+  const proof = slide.layout === "proof";
+
+  return (
+    <div
+      className={`relative aspect-video overflow-hidden border-2 ${slideTone(slide.layout)} ${
+        compact ? "p-2" : "p-5 sm:p-6"
+      }`}
+    >
+      <div className="flex h-full flex-col justify-between">
+        <div className={`flex items-center justify-between gap-3 ${cover ? "text-white/70" : "text-stone-500"}`}>
+          <span className={`${compact ? "text-[8px]" : "text-[10px]"} font-semibold uppercase tracking-normal`}>
+            {deckMode} deck
+          </span>
+          <span className={`${compact ? "text-[8px]" : "text-[10px]"} font-semibold uppercase tracking-normal`}>
+            {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+          </span>
+        </div>
+
+        <div className={cover ? "max-w-[82%]" : "max-w-[92%]"}>
+          <p
+            className={`${compact ? "mb-1 text-[8px]" : "mb-3 text-[10px]"} font-semibold uppercase tracking-normal ${
+              cover ? "text-teal-200" : "text-teal-800"
+            }`}
+          >
+            {slide.layout.replaceAll("_", " ")}
+          </p>
+          <h3
+            className={`font-semibold leading-tight ${
+              compact ? "line-clamp-2 text-[13px]" : cover ? "text-4xl sm:text-5xl" : "text-2xl sm:text-3xl"
+            }`}
+          >
+            {slide.title}
+          </h3>
+          <div
+            className={`mt-3 grid gap-2 ${
+              compact ? "hidden" : proof ? "text-sm leading-5 text-stone-800" : cover ? "text-base leading-7 text-white/85" : "text-sm leading-6 text-stone-700"
+            }`}
+          >
+            {lines.slice(0, proof ? 4 : 5).map((line) => (
+              <p key={line} className={line.length > 130 ? "line-clamp-2" : undefined}>
+                {proof ? "- " : ""}
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={`flex items-center justify-between gap-3 border-t pt-3 ${
+            compact
+              ? "hidden"
+              : cover
+                ? "border-white/20 text-white/65"
+                : "border-stone-200 text-stone-500"
+          }`}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-normal">{productName}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-normal">ProofPitch</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SlideDeckPreview({
+  launchPack,
+  activeSlideIndex,
+  onSelectSlide,
+}: {
+  launchPack: LaunchPack;
+  activeSlideIndex: number;
+  onSelectSlide: (index: number) => void;
+}) {
+  const slides = launchPack.pitchDeck.outline.slides;
+  const activeSlide = slides[Math.min(activeSlideIndex, slides.length - 1)] ?? slides[0];
+
+  if (!activeSlide) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-3 lg:grid-cols-[128px_1fr]">
+        <div className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:max-h-[420px] lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
+          {slides.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={() => onSelectSlide(index)}
+              className={`w-28 shrink-0 border bg-white p-1 text-left transition lg:w-full ${
+                index === activeSlideIndex ? "border-stone-950 shadow-[4px_4px_0_#111827]" : "border-stone-300 hover:border-teal-800"
+              }`}
+              aria-label={`Show slide ${index + 1}: ${slide.title}`}
+            >
+              <SlideCanvas
+                slide={slide}
+                index={index}
+                total={slides.length}
+                productName={launchPack.productName}
+                deckMode={launchPack.deckMode}
+                compact
+              />
+            </button>
+          ))}
+        </div>
+
+        <SlideCanvas
+          slide={activeSlide}
+          index={Math.min(activeSlideIndex, slides.length - 1)}
+          total={slides.length}
+          productName={launchPack.productName}
+          deckMode={launchPack.deckMode}
+        />
+      </div>
+    </div>
+  );
+}
+
 function OutputPreview({
   launchPack,
   isGenerating,
@@ -90,6 +283,8 @@ function OutputPreview({
   onRenderDeck: () => Promise<void>;
   onCopy: (text: string) => Promise<void>;
 }) {
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+
   if (!launchPack) {
     return (
       <div className="grid min-h-[420px] content-between border-2 border-stone-950 bg-white p-5 shadow-[10px_10px_0_#111827]">
@@ -115,6 +310,10 @@ function OutputPreview({
   const pdfExport = launchPack.pitchDeck.exports.find((item) => item.format === "pdf");
   const acceptedSet = new Set(acceptedClaimIds);
   const canApprove = acceptedClaimIds.length > 0 && !outlineReady;
+  const slides = launchPack.pitchDeck.outline.slides;
+  const currentSlideIndex = slides.length ? Math.min(activeSlideIndex, slides.length - 1) : 0;
+  const canGoBack = currentSlideIndex > 0;
+  const canGoForward = currentSlideIndex < slides.length - 1;
 
   return (
     <div className="grid max-h-none min-h-[420px] gap-4 overflow-visible border-2 border-stone-950 bg-white p-5 shadow-[10px_10px_0_#111827] lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
@@ -223,16 +422,47 @@ function OutputPreview({
         </div>
       ) : (
         <div className="grid gap-3">
-          <div className="grid gap-2">
-            {launchPack.pitchDeck.outline.slides.map((slide, index) => (
-              <div key={slide.id} className="border border-stone-300 bg-white p-3">
-                <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-teal-800">
-                  {String(index + 1).padStart(2, "0")} / {slide.layout.replaceAll("_", " ")}
-                </div>
-                <p className="text-sm font-semibold text-stone-950">{slide.title}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">{slide.body}</p>
-              </div>
-            ))}
+          <SlideDeckPreview
+            launchPack={launchPack}
+            activeSlideIndex={currentSlideIndex}
+            onSelectSlide={setActiveSlideIndex}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveSlideIndex((current) => Math.max(0, current - 1))}
+                disabled={!canGoBack}
+                className="inline-flex h-10 w-10 items-center justify-center border border-stone-900 bg-white text-stone-950 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Previous slide"
+                aria-label="Previous slide"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <span className="text-sm font-semibold text-stone-700">
+                {currentSlideIndex + 1} / {slides.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveSlideIndex((current) => Math.min(slides.length - 1, current + 1))}
+                disabled={!canGoForward}
+                className="inline-flex h-10 w-10 items-center justify-center border border-stone-900 bg-white text-stone-950 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Next slide"
+                aria-label="Next slide"
+              >
+                <ArrowRight size={16} />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                downloadTextFile(`${slugFilename(launchPack.productName)}-${launchPack.deckMode}-slidev.md`, launchPack.pitchDeck.markdown)
+              }
+              className="inline-flex items-center gap-2 border border-stone-900 bg-white px-4 py-3 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
+            >
+              <Download size={16} />
+              Download Slidev
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -247,6 +477,7 @@ function OutputPreview({
             {pdfExport?.signedUrl ? (
               <a
                 href={pdfExport.signedUrl}
+                download
                 className="inline-flex items-center gap-2 border border-stone-900 bg-white px-4 py-3 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
               >
                 <Download size={16} />
@@ -430,8 +661,8 @@ export function ProofPitchLanding() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#edf4f1] text-stone-950 lg:overflow-hidden">
-      <section className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
+    <main className="min-h-screen overflow-x-hidden bg-[#edf4f1] text-stone-950">
+      <section className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:px-8">
         <div className="grid gap-5">
           <nav className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -538,6 +769,7 @@ export function ProofPitchLanding() {
         </div>
 
         <OutputPreview
+          key={result?.id ?? "empty-output"}
           launchPack={result}
           isGenerating={isGenerating}
           isApproving={isApproving}

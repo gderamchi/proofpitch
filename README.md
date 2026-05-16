@@ -3,17 +3,18 @@
 ProofPitch is an MVP for one workflow:
 
 ```text
-product URL + short context + deck mode -> claim review -> Slidev outline -> PDF render state
+product URL + short context + deck mode -> claim review -> visual Slidev preview -> PDF render state
 ```
 
 The app deliberately keeps the deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. When Playwright capture is disabled or cannot record the product URL, the API returns `demoVideo.status: "pending"` with an explicit blocker instead of pretending a slide video is a product demo.
 
 ## MVP Scope
 
-- Compact landing page with product URL, product name, audience, goal, optional demo instructions, deck mode, claim review, and outline approval.
+- Compact landing page with product URL, product name, audience, goal, optional demo instructions, deck mode, claim review, outline approval, and a visual slide preview.
 - `LaunchPack` output with `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, and checklist.
 - `DeckMode` values: `investor`, `sales`, and `launch`.
 - `pitchDeck` starts pending, then stores a validated `DeckOutline`, deterministic Slidev markdown, render state, and PDF export metadata after approval/render.
+- Approved decks render as navigable 16:9 slide previews with thumbnail selection, Slidev Markdown download, and PDF download when the render artifact is ready.
 - `PitchPack` output with reusable pitch copy, demo steps, claim ledger, risks, next steps, and provider usage.
 - Providers in the public contract: OpenAI, Tavily, and Pioneer.
 - Tavily supplies research sources for proof-backed claims.

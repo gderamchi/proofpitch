@@ -24,8 +24,9 @@ Teams need launch material that is clear enough to reuse and conservative enough
 6. ProofPitch returns a `LaunchPack` with claim review, pending Slidev `pitchDeck`, and product-demo `demoVideo`.
 7. User approves non-unsupported claims before ProofPitch builds a structured `DeckOutline`.
 8. ProofPitch compiles the approved `DeckOutline` into deterministic Slidev markdown.
-9. User starts PDF rendering from the approved outline. Production export requires authenticated storage; local rendering remains opt-in.
-10. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
+9. User reviews a visual slide preview with thumbnails and can download the underlying Slidev markdown as a secondary technical artifact.
+10. User starts PDF rendering from the approved outline. Production export requires authenticated storage; local rendering remains opt-in.
+11. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
 
 ## 5. P0 Requirements
 
@@ -33,6 +34,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - Responsive generator form with no pricing, auth panel, provider strip, or scroll narrative.
 - Deck mode selector for investor, sales, and launch decks.
 - Claim approval gate before outline generation.
+- Visual 16:9 deck preview after outline approval, with slide navigation and thumbnail selection.
 - Deterministic `DeckOutline` to Slidev Markdown compilation; the LLM must not output arbitrary Slidev/Vue.
 - `LaunchPack` schema containing only `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, checklist, and request metadata.
 - `PitchPack` schema with claim ledger, reusable pitch copy, risks, next steps, and provider usage.
@@ -56,6 +58,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - A new user understands the workflow immediately on the first screen.
 - A valid minimal request to `/api/launch-packs` returns `pitchDeck`, `demoVideo`, `pitchPack`, and provider status only.
 - `/api/launch-packs/:id/outline` turns accepted claims into the Slidev outline and markdown.
+- Approved outlines are visible as slides, not only text summaries, and expose a Slidev markdown download.
 - `/api/launch-packs/:id/render` reports PDF render state and blocks anonymous production export.
 - No MVP output contains audio scripts, generated media prompts, or external publishing metadata.
 - The deck is clearly separate from the demo video state.
