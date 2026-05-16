@@ -14,7 +14,7 @@ The app deliberately keeps the deck and product demo separate. A launch-pack req
 - `LaunchPack` output with `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, and checklist.
 - `DeckMode` values: `investor`, `sales`, and `launch`.
 - `pitchDeck` starts pending, then stores a validated `DeckOutline`, deterministic Slidev markdown, render state, and PDF export metadata after approval/render.
-- Approved decks render as navigable 16:9 slide previews with thumbnail selection, Slidev Markdown download, and PDF download when the render artifact is ready.
+- Approved decks render as navigable 16:9 slide previews with thumbnail selection, product screenshot cues when available, Slidev Markdown download, and PDF download when the render artifact is ready.
 - `PitchPack` output with reusable pitch copy, demo steps, claim ledger, risks, next steps, and provider usage.
 - Providers in the public contract: OpenAI, Tavily, and Pioneer.
 - Tavily supplies research sources for proof-backed claims.
@@ -50,6 +50,13 @@ Optional product capture and local rendering:
 ```bash
 PROOFPITCH_PLAYWRIGHT_CAPTURE=1
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
+```
+
+Planned voiceover integration uses Gradium TTS for demo narration. It should stay disabled unless both values are configured:
+
+```bash
+GRADIUM_API_KEY=
+GRADIUM_VOICE_ID=
 ```
 
 ## Main API

@@ -99,22 +99,22 @@ function slugFilename(value: string) {
 
 function slideTone(layout: DeckSlideSpec["layout"]) {
   if (layout === "proof") {
-    return "border-teal-900 bg-[#f2fbf7]";
+    return "border-teal-950 bg-[#effaf5]";
   }
 
   if (layout === "risks") {
-    return "border-amber-900 bg-[#fff9eb]";
+    return "border-amber-950 bg-[#fff6df]";
   }
 
   if (layout === "demo") {
-    return "border-sky-900 bg-[#f1f8fb]";
+    return "border-sky-950 bg-[#eef8fb]";
   }
 
   if (layout === "cover") {
-    return "border-stone-950 bg-stone-950 text-white";
+    return "border-stone-950 bg-[#0f1f1d] text-white";
   }
 
-  return "border-stone-950 bg-white";
+  return "border-stone-950 bg-[#fffdf7]";
 }
 
 function bodyLines(body: string) {
@@ -123,6 +123,147 @@ function bodyLines(body: string) {
     .flatMap((line) => line.split(/(?= - )/g))
     .map((line) => line.replace(/^-\s*/, "").trim())
     .filter(Boolean);
+}
+
+function visualUrlLabel(url?: string) {
+  if (!url) {
+    return "product screen";
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^.*\//, "");
+  }
+}
+
+function isImageUrl(url?: string) {
+  return Boolean(url?.match(/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i) || url?.startsWith("data:image/"));
+}
+
+function SlideVisualPanel({
+  slide,
+  lines,
+  compact,
+}: {
+  slide: DeckSlideSpec;
+  lines: string[];
+  compact: boolean;
+}) {
+  const visual = slide.visual;
+  const cover = slide.layout === "cover";
+
+  if (!visual || compact) {
+    return null;
+  }
+
+  if (visual.kind === "screenshot") {
+    return (
+      <div className="relative grid h-full min-h-0 border border-stone-950 bg-white shadow-[6px_6px_0_rgba(17,24,39,0.12)]">
+        <div className="flex h-7 items-center gap-1 border-b border-stone-300 bg-stone-100 px-3">
+          <span className="h-2 w-2 rounded-full bg-red-400" />
+          <span className="h-2 w-2 rounded-full bg-amber-400" />
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="ml-2 min-w-0 truncate text-[9px] font-semibold text-stone-500">
+            {visualUrlLabel(visual.url)}
+          </span>
+        </div>
+        <div className="relative min-h-0 overflow-hidden bg-[#eef4f1]">
+          {isImageUrl(visual.url) ? (
+            <div
+              aria-label={visual.alt}
+              className="h-full bg-cover bg-center"
+              style={{ backgroundImage: `url(${visual.url})` }}
+            />
+          ) : (
+            <div className="grid h-full content-center gap-3 p-5">
+              <div className="h-2 w-24 bg-teal-800" />
+              <div className="grid gap-2">
+                <div className="h-4 w-3/4 bg-stone-950" />
+                <div className="h-4 w-5/6 bg-stone-800" />
+                <div className="h-4 w-2/3 bg-stone-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-12 border border-stone-400 bg-white" />
+                <div className="h-12 border border-stone-400 bg-white" />
+                <div className="h-12 border border-stone-400 bg-white" />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="border-t border-stone-300 px-3 py-2">
+          <p className="line-clamp-1 text-[10px] font-semibold uppercase tracking-normal text-teal-800">
+            {visual.title}
+          </p>
+          {visual.caption ? <p className="line-clamp-1 text-[10px] leading-4 text-stone-500">{visual.caption}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (visual.kind === "claim_stack") {
+    return (
+      <div className="grid h-full content-center gap-2 border border-teal-900 bg-white p-3 shadow-[6px_6px_0_rgba(15,118,110,0.16)]">
+        <p className="text-[10px] font-semibold uppercase tracking-normal text-teal-800">{visual.title}</p>
+        {lines.slice(0, 3).map((line, index) => (
+          <div key={line} className="border border-stone-300 bg-[#f7fbf7] p-2">
+            <p className="text-[9px] font-semibold uppercase tracking-normal text-stone-500">
+              Evidence {index + 1}
+            </p>
+            <p className="line-clamp-2 text-[11px] leading-4 text-stone-800">{line}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (visual.kind === "workflow" || visual.kind === "checklist") {
+    return (
+      <div className="grid h-full content-center gap-2 border border-stone-900 bg-white p-3 shadow-[6px_6px_0_rgba(17,24,39,0.12)]">
+        <p className="text-[10px] font-semibold uppercase tracking-normal text-teal-800">{visual.title}</p>
+        {lines.slice(0, 4).map((line, index) => (
+          <div key={line} className="grid grid-cols-[24px_1fr] items-start gap-2">
+            <span className="grid h-6 w-6 place-items-center bg-stone-950 text-[10px] font-semibold text-white">
+              {index + 1}
+            </span>
+            <p className="line-clamp-2 text-[11px] leading-4 text-stone-700">{line}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (visual.kind === "risk_stack") {
+    return (
+      <div className="grid h-full content-center gap-2 border border-amber-900 bg-white p-3 shadow-[6px_6px_0_rgba(146,64,14,0.16)]">
+        <p className="text-[10px] font-semibold uppercase tracking-normal text-amber-800">{visual.title}</p>
+        {lines.slice(0, 4).map((line) => (
+          <div key={line} className="border-l-4 border-amber-700 bg-amber-50 px-2 py-1.5">
+            <p className="line-clamp-2 text-[11px] leading-4 text-stone-800">{line}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`grid h-full content-center gap-3 border p-3 ${cover ? "border-white/25 bg-white/10" : "border-stone-900 bg-white"}`}>
+      <div>
+        <p className={`text-[10px] font-semibold uppercase tracking-normal ${cover ? "text-teal-200" : "text-teal-800"}`}>
+          {visual.kind.replaceAll("_", " ")}
+        </p>
+        <p className={`mt-2 text-lg font-semibold leading-tight ${cover ? "text-white" : "text-stone-950"}`}>
+          {visual.title}
+        </p>
+      </div>
+      {visual.caption ? (
+        <p className={`line-clamp-3 text-[11px] leading-4 ${cover ? "text-white/75" : "text-stone-600"}`}>
+          {visual.caption}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function SlideCanvas({
@@ -143,6 +284,7 @@ function SlideCanvas({
   const lines = bodyLines(slide.body);
   const cover = slide.layout === "cover";
   const proof = slide.layout === "proof";
+  const displayLines = lines.slice(0, proof ? 3 : cover ? 3 : 4);
 
   return (
     <div
@@ -150,7 +292,8 @@ function SlideCanvas({
         compact ? "p-2" : "p-5 sm:p-6"
       }`}
     >
-      <div className="flex h-full flex-col justify-between">
+      <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,#111827_1px,transparent_1px),linear-gradient(#111827_1px,transparent_1px)] [background-size:28px_28px]" />
+      <div className="relative flex h-full flex-col justify-between gap-3">
         <div className={`flex items-center justify-between gap-3 ${cover ? "text-white/70" : "text-stone-500"}`}>
           <span className={`${compact ? "text-[8px]" : "text-[10px]"} font-semibold uppercase tracking-normal`}>
             {deckMode} deck
@@ -160,33 +303,43 @@ function SlideCanvas({
           </span>
         </div>
 
-        <div className={cover ? "max-w-[82%]" : "max-w-[92%]"}>
-          <p
-            className={`${compact ? "mb-1 text-[8px]" : "mb-3 text-[10px]"} font-semibold uppercase tracking-normal ${
-              cover ? "text-teal-200" : "text-teal-800"
-            }`}
-          >
-            {slide.layout.replaceAll("_", " ")}
-          </p>
-          <h3
-            className={`font-semibold leading-tight ${
-              compact ? "line-clamp-2 text-[13px]" : cover ? "text-4xl sm:text-5xl" : "text-2xl sm:text-3xl"
-            }`}
-          >
-            {slide.title}
-          </h3>
-          <div
-            className={`mt-3 grid gap-2 ${
-              compact ? "hidden" : proof ? "text-sm leading-5 text-stone-800" : cover ? "text-base leading-7 text-white/85" : "text-sm leading-6 text-stone-700"
-            }`}
-          >
-            {lines.slice(0, proof ? 4 : 5).map((line) => (
-              <p key={line} className={line.length > 130 ? "line-clamp-2" : undefined}>
-                {proof ? "- " : ""}
-                {line}
-              </p>
-            ))}
+        <div className={`grid min-h-0 flex-1 gap-3 ${compact ? "" : cover ? "grid-cols-[1fr_0.52fr]" : "grid-cols-[1fr_0.72fr]"}`}>
+          <div className="min-w-0 self-center">
+            <p
+              className={`${compact ? "mb-1 text-[8px]" : "mb-3 text-[10px]"} font-semibold uppercase tracking-normal ${
+                cover ? "text-teal-200" : "text-teal-800"
+              }`}
+            >
+              {slide.layout.replaceAll("_", " ")}
+            </p>
+            <h3
+              className={`font-semibold leading-tight ${
+                compact ? "line-clamp-2 text-[13px]" : cover ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"
+              }`}
+            >
+              {slide.title}
+            </h3>
+            <div
+              className={`mt-3 grid gap-2 ${
+                compact
+                  ? "hidden"
+                  : proof
+                    ? "text-xs leading-5 text-stone-800"
+                    : cover
+                      ? "text-sm leading-6 text-white/85"
+                      : "text-xs leading-5 text-stone-700"
+              }`}
+            >
+              {displayLines.map((line) => (
+                <p key={line} className={line.length > 126 ? "line-clamp-2" : undefined}>
+                  {proof ? "- " : ""}
+                  {line}
+                </p>
+              ))}
+            </div>
           </div>
+
+          <SlideVisualPanel slide={slide} lines={lines} compact={compact} />
         </div>
 
         <div
@@ -195,7 +348,7 @@ function SlideCanvas({
               ? "hidden"
               : cover
                 ? "border-white/20 text-white/65"
-                : "border-stone-200 text-stone-500"
+                : "hidden"
           }`}
         >
           <span className="text-[10px] font-semibold uppercase tracking-normal">{productName}</span>
@@ -662,7 +815,7 @@ export function ProofPitchLanding() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#edf4f1] text-stone-950">
-      <section className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start lg:px-8">
+      <section className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
         <div className="grid gap-5">
           <nav className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">

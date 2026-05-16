@@ -32,7 +32,7 @@ The model must not emit arbitrary Slidev, Vue, or executable markdown. The serve
 
 The server then compiles that outline into Slidev markdown using the fixed ProofPitch template. Initial launch-pack generation returns `pitchDeck.status: "pending"` until claims are approved through `/api/launch-packs/:id/outline`.
 
-After approval, the client renders the structured outline as visual 16:9 slide previews with thumbnail selection and previous/next navigation. The generated Slidev markdown remains available as a secondary technical artifact through copy/download actions; users should not need to read raw markdown to understand the deck.
+After approval, the client renders the structured outline as visual 16:9 slide previews with thumbnail selection, previous/next navigation, and product screenshot cues when capture references exist. The generated Slidev markdown remains available as a secondary technical artifact through copy/download actions; users should not need to read raw markdown to understand the deck.
 
 ## Providers
 
@@ -73,6 +73,17 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 When enabled, the renderer can export the Slidev deck. Remotion rendering only runs when `demoVideo.status` is `ready` and render props exist.
 
 Production PDF export is gated behind authenticated storage. Anonymous/local packs may be generated and outlined, but PDF storage should return a sign-in requirement unless local rendering is explicitly enabled.
+
+## Demo Voiceover
+
+Gradium can be used for the demo-video narration path once the render worker has `GRADIUM_API_KEY` and `GRADIUM_VOICE_ID`. The intended path is:
+
+1. Build a concise narration script from `demoScript` and `demoVideo.renderProps.demoSteps`.
+2. Call Gradium's REST TTS endpoint with `x-api-key`, `voice_id`, `output_format: "wav"`, and `only_audio: true`.
+3. Store the generated WAV alongside local render assets.
+4. Overlay that audio on the product-demo video render.
+
+This voiceover must attach to the real product-demo video path. It must not turn the Slidev deck into the demo video.
 
 ## Environment
 

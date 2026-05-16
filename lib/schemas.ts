@@ -7,6 +7,14 @@ export const LaunchPackStatusSchema = z.enum(["queued", "running", "completed", 
 export const DeckModeSchema = z.enum(["investor", "sales", "launch"]);
 export const DeckRenderStateSchema = z.enum(["queued", "running", "ready", "failed"]);
 export const DeckLayoutSchema = z.enum(["cover", "section", "two_column", "proof", "demo", "risks", "closing"]);
+export const DeckSlideVisualKindSchema = z.enum([
+  "statement",
+  "screenshot",
+  "workflow",
+  "claim_stack",
+  "risk_stack",
+  "checklist",
+]);
 
 export const ClaimSchema = z.object({
   id: z.string(),
@@ -151,6 +159,14 @@ export const PitchDeckExportSchema = z.object({
   error: z.string().optional(),
 });
 
+export const DeckSlideVisualSchema = z.object({
+  kind: DeckSlideVisualKindSchema,
+  title: z.string().min(1).max(120),
+  caption: z.string().max(320).optional(),
+  url: z.string().min(1).max(2000).optional(),
+  alt: z.string().max(240).optional(),
+});
+
 export const DeckSlideSpecSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(120),
@@ -158,6 +174,7 @@ export const DeckSlideSpecSchema = z.object({
   body: z.string().min(1).max(1200),
   claimIds: z.array(z.string()),
   notes: z.string().min(1).max(1200),
+  visual: DeckSlideVisualSchema.optional(),
 });
 
 export const DeckOutlineSchema = z.object({
@@ -285,6 +302,7 @@ export type LaunchPackStatus = z.infer<typeof LaunchPackStatusSchema>;
 export type DeckMode = z.infer<typeof DeckModeSchema>;
 export type DeckRenderState = z.infer<typeof DeckRenderStateSchema>;
 export type DeckLayout = z.infer<typeof DeckLayoutSchema>;
+export type DeckSlideVisualKind = z.infer<typeof DeckSlideVisualKindSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
 export type PitchPack = z.infer<typeof PitchPackSchema>;
 export type GeneratePitchPackRequest = z.infer<typeof GeneratePitchPackRequestSchema>;
@@ -301,6 +319,7 @@ export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type LaunchScreenshot = z.infer<typeof LaunchScreenshotSchema>;
 export type SlidevExportFormat = z.infer<typeof SlidevExportFormatSchema>;
 export type PitchDeckExport = z.infer<typeof PitchDeckExportSchema>;
+export type DeckSlideVisual = z.infer<typeof DeckSlideVisualSchema>;
 export type DeckSlideSpec = z.infer<typeof DeckSlideSpecSchema>;
 export type DeckOutline = z.infer<typeof DeckOutlineSchema>;
 export type PitchDeck = z.infer<typeof PitchDeckSchema>;

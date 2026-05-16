@@ -24,7 +24,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 6. ProofPitch returns a `LaunchPack` with claim review, pending Slidev `pitchDeck`, and product-demo `demoVideo`.
 7. User approves non-unsupported claims before ProofPitch builds a structured `DeckOutline`.
 8. ProofPitch compiles the approved `DeckOutline` into deterministic Slidev markdown.
-9. User reviews a visual slide preview with thumbnails and can download the underlying Slidev markdown as a secondary technical artifact.
+9. User reviews a visual slide preview with thumbnails, screenshot cues from the captured product surface when available, and can download the underlying Slidev markdown as a secondary technical artifact.
 10. User starts PDF rendering from the approved outline. Production export requires authenticated storage; local rendering remains opt-in.
 11. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
 
@@ -34,7 +34,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - Responsive generator form with no pricing, auth panel, provider strip, or scroll narrative.
 - Deck mode selector for investor, sales, and launch decks.
 - Claim approval gate before outline generation.
-- Visual 16:9 deck preview after outline approval, with slide navigation and thumbnail selection.
+- Visual 16:9 deck preview after outline approval, with slide navigation, thumbnail selection, and product screenshot cues where capture data exists.
 - Deterministic `DeckOutline` to Slidev Markdown compilation; the LLM must not output arbitrary Slidev/Vue.
 - `LaunchPack` schema containing only `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, checklist, and request metadata.
 - `PitchPack` schema with claim ledger, reusable pitch copy, risks, next steps, and provider usage.
@@ -52,6 +52,8 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - External channel drafts.
 - Pricing presentation on the landing page.
 - Slide video masquerading as a product demo.
+
+Gradium voiceover is a planned extension for the product-demo video only, not for replacing the product demo with a narrated slide deck.
 
 ## 7. Success Criteria
 

@@ -25,8 +25,13 @@ export type ReleaseAssets = {
 
 const REMOTION_COMPOSITION_ID = "ProofPitchProductDemo";
 
-export function buildSlidevMarkdown(input: ReleaseInput, pitchPack: PitchPack, acceptedClaimIds: string[]) {
-  const outline = buildDeckSpec({ input, pitchPack, acceptedClaimIds });
+export function buildSlidevMarkdown(
+  input: ReleaseInput,
+  pitchPack: PitchPack,
+  acceptedClaimIds: string[],
+  screenshots: LaunchScreenshot[] = [],
+) {
+  const outline = buildDeckSpec({ input, pitchPack, acceptedClaimIds, screenshots });
 
   return buildSlidevMarkdownFromDeckSpec({ input, pitchPack, outline });
 }
@@ -35,12 +40,14 @@ export function buildApprovedPitchDeck({
   input,
   pitchPack,
   acceptedClaimIds,
+  screenshots = [],
 }: {
   input: ReleaseInput;
   pitchPack: PitchPack;
   acceptedClaimIds: string[];
+  screenshots?: LaunchScreenshot[];
 }) {
-  const outline = buildDeckSpec({ input, pitchPack, acceptedClaimIds });
+  const outline = buildDeckSpec({ input, pitchPack, acceptedClaimIds, screenshots });
   const { markdown, slideCount } = buildSlidevMarkdownFromDeckSpec({ input, pitchPack, outline });
 
   return PitchDeckSchema.parse({

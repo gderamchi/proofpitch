@@ -4,6 +4,8 @@ import {
   type CreateLaunchPackRequest,
   type DeckMode,
   type DeckOutline,
+  type DeckSlideVisual,
+  type LaunchScreenshot,
   type PitchPack,
 } from "./schemas";
 
@@ -50,6 +52,29 @@ function sourceLabel(claim: Claim) {
   return `${claim.text} (${status}; ${source})`;
 }
 
+function visual(
+  kind: DeckSlideVisual["kind"],
+  title: string,
+  caption?: string,
+  screenshot?: LaunchScreenshot,
+): DeckSlideVisual {
+  return {
+    kind,
+    title,
+    ...(caption ? { caption: compact(caption, 280) } : {}),
+    ...(screenshot
+      ? {
+          url: screenshot.url,
+          alt: screenshot.alt,
+        }
+      : {}),
+  };
+}
+
+function screenshotForSlide(screenshots: LaunchScreenshot[], index = 0) {
+  return screenshots[index] ?? screenshots[0];
+}
+
 export function defaultAcceptedClaimIds(pitchPack: PitchPack) {
   return pitchPack.claims
     .filter((claim) => claim.status !== "unsupported")
@@ -82,10 +107,12 @@ export function buildDeckSpec({
   input,
   pitchPack,
   acceptedClaimIds,
+  screenshots = [],
 }: {
   input: DeckSpecInput;
   pitchPack: PitchPack;
   acceptedClaimIds: string[];
+  screenshots?: LaunchScreenshot[];
 }): DeckOutline {
   const accepted = new Set(acceptedClaimIds);
   const acceptedClaims = pitchPack.claims.filter(
@@ -106,6 +133,7 @@ export function buildDeckSpec({
         body: compact(`${pitchPack.oneLiner}\n\n${mode.label} deck. ${mode.outcome}`, 520),
         claimIds: [],
         notes: `Open with the product promise and make clear this is a ${mode.label.toLowerCase()} deck.`,
+        visual: visual("statement", "Proof-backed story", mode.outcome, screenshotForSlide(screenshots)),
       },
       {
         id: "audience-goal",
@@ -118,6 +146,7 @@ export function buildDeckSpec({
         ]),
         claimIds: [],
         notes: "Anchor the deck in the user's target audience and the requested outcome.",
+        visual: visual("statement", "Audience focus", `${input.targetAudience} -> ${input.launchGoal}`),
       },
       {
         id: "problem",
@@ -126,6 +155,7 @@ export function buildDeckSpec({
         body: compact(pitchPack.problem),
         claimIds: [],
         notes: "Keep the problem specific and avoid adding unsupported market claims.",
+        visual: visual("statement", "Pain lens", "Frame the gap before showing the product workflow."),
       },
       {
         id: "solution",
@@ -134,6 +164,7 @@ export function buildDeckSpec({
         body: [`What changes:\n${compact(pitchPack.solution, 420)}`, `Why now:\n${compact(pitchPack.whyNow, 420)}`].join("\n\n"),
         claimIds: [],
         notes: "Connect the solution to the timing without inventing traction metrics.",
+        visual: visual("workflow", "Before -> after", "Connect the product change to the timing of the launch."),
       },
       {
         id: "proof-ledger",
@@ -144,6 +175,7 @@ export function buildDeckSpec({
           : "No claims were accepted for the deck yet. Keep the PDF export gated until at least one claim is approved.",
         claimIds: safeAcceptedClaimIds,
         notes: "Only accepted non-unsupported claims appear here. Rejected and unsupported claims stay out of the deck.",
+        visual: visual("claim_stack", "Accepted evidence", `${safeAcceptedClaimIds.length} claim${safeAcceptedClaimIds.length === 1 ? "" : "s"} cleared for deck use.`),
       },
       {
         id: "product-demo",
@@ -155,6 +187,7 @@ export function buildDeckSpec({
         ]),
         claimIds: [],
         notes: "Use the actual product path as the proof moment; do not replace the demo with slides.",
+        visual: visual("screenshot", screenshotForSlide(screenshots, 1)?.title ?? "Product surface", "Use captured product screens when the worker can capture them; otherwise keep the URL reference visible.", screenshotForSlide(screenshots, 1)),
       },
       {
         id: "risks",
@@ -163,6 +196,7 @@ export function buildDeckSpec({
         body: bulletList(pitchPack.risks.slice(0, 4)),
         claimIds: [],
         notes: "Use this slide to prevent overclaiming before the deck is shared externally.",
+        visual: visual("risk_stack", "Guardrails", "Do not ship unsupported metrics or vague market claims."),
       },
       {
         id: "next-steps",
@@ -171,6 +205,7 @@ export function buildDeckSpec({
         body: bulletList([...pitchPack.nextSteps.slice(0, 3), mode.close]),
         claimIds: [],
         notes: "Close with a concrete next action tied to the selected deck mode.",
+        visual: visual("checklist", "Share-ready path", "Review, render, and download the final PDF."),
       },
     ],
   });
@@ -178,6 +213,14 @@ export function buildDeckSpec({
 
 function escapeSlidevText(value: string) {
   return value.replace(/---/g, "- - -").trim();
+}
+
+function escapeSlidevHtml(value: string) {
+  return escapeSlidevText(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function layoutForSlidev(layout: DeckOutline["slides"][number]["layout"]) {
@@ -196,8 +239,17 @@ function slideMarkdown(slide: DeckOutline["slides"][number], index: number) {
   const frontmatter = ["---", `layout: ${layoutForSlidev(slide.layout)}`, "---"].join("\n");
   const heading = index === 0 ? `# ${escapeSlidevText(slide.title)}` : `## ${escapeSlidevText(slide.title)}`;
   const notes = ["<!--", escapeSlidevText(slide.notes), "-->"].join("\n");
+  const visual = slide.visual
+    ? [
+        "",
+        `<div class="text-xs uppercase tracking-wide opacity-70">${escapeSlidevHtml(slide.visual.kind.replaceAll("_", " "))}</div>`,
+        `<div class="mt-1 text-lg font-semibold">${escapeSlidevHtml(slide.visual.title)}</div>`,
+        slide.visual.caption ? `<div class="mt-1 text-sm opacity-70">${escapeSlidevHtml(slide.visual.caption)}</div>` : "",
+        slide.visual.url ? `<div class="mt-2 text-xs opacity-60">${escapeSlidevHtml(slide.visual.url)}</div>` : "",
+      ].filter(Boolean).join("\n")
+    : "";
 
-  return [frontmatter, "", heading, "", escapeSlidevText(slide.body), "", notes].join("\n");
+  return [frontmatter, "", heading, "", escapeSlidevText(slide.body), visual, "", notes].join("\n");
 }
 
 export function buildSlidevMarkdownFromDeckSpec({

@@ -417,6 +417,14 @@ describe("backend contracts", () => {
       input,
       pitchPack,
       acceptedClaimIds: ["claim-1"],
+      screenshots: [
+        {
+          id: "shot-demo",
+          title: "ProofPitch product workflow",
+          url: "https://assets.test/workflow.png",
+          alt: "ProofPitch product workflow screenshot",
+        },
+      ],
     });
     const compiled = buildSlidevMarkdownFromDeckSpec({
       input,
@@ -428,11 +436,16 @@ describe("backend contracts", () => {
     expect(outline.deckMode).toBe("sales");
     expect(outline.acceptedClaimIds).toEqual(["claim-1"]);
     expect(outline.slides.map((slide) => slide.title)).toContain("Proof Ledger");
+    expect(outline.slides.find((slide) => slide.id === "product-demo")?.visual).toMatchObject({
+      kind: "screenshot",
+      url: "https://assets.test/workflow.png",
+    });
     expect(outline.slides.flatMap((slide) => slide.claimIds)).toEqual(["claim-1"]);
     expect(JSON.stringify(outline)).not.toContain("40%");
     expect(compiled.markdown).toContain("theme: default");
     expect(compiled.markdown).toContain("---");
     expect(compiled.markdown).toContain("<!--");
+    expect(compiled.markdown).toContain("https://assets.test/workflow.png");
     expect(compiled.markdown).toContain("ProofPitch creates a claim ledger.");
     expect(compiled.markdown).not.toContain("improves conversion by 40%");
     expect(compiled.slideCount).toBe(outline.slides.length);

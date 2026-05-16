@@ -253,6 +253,7 @@ export async function approveLaunchPackDeckOutline(
     input: launchPackInput(base),
     pitchPack: base.pitchPack,
     acceptedClaimIds: approval.acceptedClaimIds,
+    screenshots: base.screenshots,
   });
 
   if (!pitchDeck.outline.acceptedClaimIds.length) {
