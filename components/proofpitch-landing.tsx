@@ -402,7 +402,7 @@ export function ProofPitchLanding() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ dryRun: false }),
+        body: JSON.stringify({ dryRun: false, launchPack: result }),
       });
       const data = (await response.json()) as RenderDeckResponse;
 

@@ -258,6 +258,7 @@ export const ApproveDeckOutlineRequestSchema = z.object({
 
 export const RenderLaunchDeckRequestSchema = z.object({
   dryRun: z.boolean().default(false),
+  launchPack: LaunchPackSchema.optional(),
 });
 
 export const CreateProjectRequestSchema = z.object({

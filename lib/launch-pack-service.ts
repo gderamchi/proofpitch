@@ -328,11 +328,17 @@ export async function startLaunchPackDeckRender(
   const request = RenderLaunchDeckRequestSchema.parse(input);
   const detail = await getLaunchPackDetail(id);
 
-  if (!detail) {
+  if (!detail && request.launchPack?.id !== id) {
     return null;
   }
 
-  if (detail.launchPack.pitchDeck.status !== "ready" || !detail.launchPack.pitchDeck.markdown) {
+  const launchPack = detail?.launchPack ?? request.launchPack;
+
+  if (!launchPack) {
+    return null;
+  }
+
+  if (launchPack.pitchDeck.status !== "ready" || !launchPack.pitchDeck.markdown) {
     throw new Error("Approve the deck outline before rendering the PDF.");
   }
 
@@ -340,7 +346,7 @@ export async function startLaunchPackDeckRender(
 
   if (!hasAuthenticatedStorage && process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
     return {
-      launchPack: patchPitchDeck(detail.launchPack, {
+      launchPack: patchPitchDeck(launchPack, {
         renderState: "queued",
       }),
       render: {
@@ -353,12 +359,12 @@ export async function startLaunchPackDeckRender(
   }
 
   const persistence = await persistLaunchPack(
-    patchPitchDeck(detail.launchPack, {
+    patchPitchDeck(launchPack, {
       renderState: request.dryRun ? "queued" : "running",
     }),
   );
 
-  const runningPack = (await getLaunchPackDetail(id))?.launchPack ?? detail.launchPack;
+  const runningPack = (await getLaunchPackDetail(id))?.launchPack ?? launchPack;
   const render = await renderReleaseArtifacts({
     launchPackId: id,
     pitchDeck: runningPack.pitchDeck,
