@@ -65,6 +65,10 @@ function commandLine(command: string, args: string[]) {
   return [command, ...args.map((arg) => (arg.includes(" ") ? JSON.stringify(arg) : arg))].join(" ");
 }
 
+function localBin(command: string) {
+  return path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? `${command}.cmd` : command);
+}
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -210,10 +214,11 @@ export async function renderReleaseArtifacts({
   const videoPath = renderedDemoVideoPath(launchPackId);
   const shouldRenderDeck = renderDeck;
   const shouldRenderVideo = renderVideo && Boolean(demoVideo.renderProps) && !demoVideo.url;
-  const slidevPdfArgs = ["@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
-  const slidevPngArgs = ["@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
+  const slidevCommand = localBin("slidev");
+  const remotionCommand = localBin("remotion");
+  const slidevPdfArgs = ["export", deckPath, "--format", "pdf", "--output", deckPdfPath];
+  const slidevPngArgs = ["export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
-    "remotion",
     "render",
     "remotion/index.tsx",
     demoVideo.compositionId || "ProofPitchProductDemo",
@@ -225,8 +230,8 @@ export async function renderReleaseArtifacts({
     "--overwrite",
   ];
   const commands = [
-    ...(shouldRenderDeck ? [commandLine("npx", slidevPdfArgs), commandLine("npx", slidevPngArgs)] : []),
-    ...(shouldRenderVideo ? [commandLine("npx", remotionArgs)] : []),
+    ...(shouldRenderDeck ? [commandLine(slidevCommand, slidevPdfArgs), commandLine(slidevCommand, slidevPngArgs)] : []),
+    ...(shouldRenderVideo ? [commandLine(remotionCommand, remotionArgs)] : []),
   ];
   const artifacts: RenderArtifact[] = [
     ...(shouldRenderDeck
@@ -287,13 +292,13 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderDeck) {
-      await runCommand("npx", slidevPdfArgs);
+      await runCommand(slidevCommand, slidevPdfArgs);
       artifacts[0] = {
         ...artifacts[0],
         status: "ready",
       };
 
-      await runCommand("npx", slidevPngArgs);
+      await runCommand(slidevCommand, slidevPngArgs);
       artifacts[1] = {
         ...artifacts[1],
         status: "ready",
@@ -301,7 +306,7 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderVideo) {
-      await runCommand("npx", remotionArgs);
+      await runCommand(remotionCommand, remotionArgs);
       const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
       artifacts[videoArtifactIndex] = {
         ...artifacts[videoArtifactIndex],
