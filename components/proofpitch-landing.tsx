@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowRight, CheckCircle2, Clipboard, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Clipboard, ExternalLink, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -12,7 +12,7 @@ const sampleInput = {
   productName: "ProofPitch",
   targetAudience: "Founder-led B2B teams",
   launchGoal: "Prepare a customer-call demo and concise deck.",
-  demoInstructions: "Show the core workflow and proof moment.",
+  demoInstructions: "Accept cookies if needed, scroll to the proof moment, then show the core workflow.",
 };
 
 function ProofPitchLogo() {
@@ -46,10 +46,16 @@ function OutputPreview({
   launchPack,
   isGenerating,
   onCopy,
+  onRenderVideo,
+  isRenderingVideo,
+  renderState,
 }: {
   launchPack: LaunchPack | null;
   isGenerating: boolean;
   onCopy: (text: string) => Promise<void>;
+  onRenderVideo: () => Promise<void>;
+  isRenderingVideo: boolean;
+  renderState: string | null;
 }) {
   if (!launchPack) {
     return (
@@ -111,7 +117,44 @@ function OutputPreview({
         ))}
       </div>
 
-      {launchPack.demoVideo.error ? (
+      {launchPack.demoVideo.url ? (
+        <div className="grid gap-3">
+          <video
+            src={launchPack.demoVideo.url}
+            controls
+            playsInline
+            preload="metadata"
+            className="aspect-video w-full border border-stone-900 bg-stone-950"
+          />
+          <a
+            href={launchPack.demoVideo.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex w-fit items-center gap-2 border border-stone-900 bg-white px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
+          >
+            <ExternalLink size={15} />
+            Open full-size video
+          </a>
+        </div>
+      ) : (
+        <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
+          <p className="text-sm leading-6 text-stone-700">
+            Let the demo agent handle consent, follow your path instructions, then assemble the walkthrough as a Remotion MP4.
+          </p>
+          <button
+            type="button"
+            onClick={() => void onRenderVideo()}
+            disabled={isRenderingVideo}
+            className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+            {isRenderingVideo ? "Rendering video" : "Render demo video"}
+          </button>
+          {renderState ? <p className="text-sm font-medium text-teal-800">{renderState}</p> : null}
+        </div>
+      )}
+
+      {launchPack.demoVideo.error && !launchPack.demoVideo.url ? (
         <div className="flex gap-3 border border-amber-800 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
           <AlertCircle size={16} className="mt-1 shrink-0" />
           {launchPack.demoVideo.error}
@@ -146,6 +189,8 @@ export function ProofPitchLanding() {
   const [result, setResult] = useState<LaunchPack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<string | null>(null);
+  const [isRenderingVideo, setIsRenderingVideo] = useState(false);
+  const [renderState, setRenderState] = useState<string | null>(null);
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -174,6 +219,7 @@ export function ProofPitchLanding() {
       }
 
       setResult(data as LaunchPack);
+      setRenderState(null);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : "Release pack generation failed.");
     } finally {
@@ -185,6 +231,68 @@ export function ProofPitchLanding() {
     await navigator.clipboard.writeText(text);
     setCopyState("Copied");
     window.setTimeout(() => setCopyState(null), 1500);
+  }
+
+  async function renderDemoVideo() {
+    if (!result) {
+      return;
+    }
+
+    setIsRenderingVideo(true);
+    setRenderState("Capturing the site and rendering with Remotion...");
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/launch-packs/${result.id}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: false,
+          force: true,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.detail ?? data.error ?? "Video render failed.");
+      }
+
+      const videoArtifact = Array.isArray(data.artifacts)
+        ? data.artifacts.find((artifact: { type?: string }) => artifact.type === "video")
+        : null;
+
+      if (!videoArtifact || videoArtifact.status !== "ready") {
+        throw new Error(data.error ?? "Video render did not finish.");
+      }
+
+      const videoUrl = `${data.videoUrl ?? `/api/launch-packs/${result.id}/video`}?v=${Date.now()}`;
+
+      setResult({
+        ...result,
+        demoVideo: {
+          ...result.demoVideo,
+          status: "ready",
+          durationSeconds: 24,
+          uploadStatus: "not_required",
+          url: videoUrl,
+          error: undefined,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+      setRenderState("Demo video rendered.");
+    } catch (renderError) {
+      const message = renderError instanceof Error ? renderError.message : "Video render failed.";
+
+      setError(message);
+      setRenderState(null);
+    } finally {
+      setIsRenderingVideo(false);
+    }
   }
 
   return (
@@ -219,7 +327,8 @@ export function ProofPitchLanding() {
               Product URL to product demo video and pitch deck.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-stone-600">
-              ProofPitch keeps the product demo separate from the deck and flags claims before anything is shared.
+              ProofPitch now uses a small demo agent: it handles cookie walls, follows your path
+              instructions, then turns that walkthrough into a Remotion video.
             </p>
           </div>
 
@@ -261,7 +370,7 @@ export function ProofPitchLanding() {
               onChange={(event) => setDemoInstructions(event.target.value)}
               rows={2}
               className="resize-none border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm leading-6 outline-none focus:border-teal-800"
-              placeholder="Product demo path"
+              placeholder="Demo path, e.g. accept cookies, search Pricing, open the first result, scroll to the CTA"
             />
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -278,7 +387,14 @@ export function ProofPitchLanding() {
           </form>
         </div>
 
-        <OutputPreview launchPack={result} isGenerating={isGenerating} onCopy={copyText} />
+        <OutputPreview
+          launchPack={result}
+          isGenerating={isGenerating}
+          onCopy={copyText}
+          onRenderVideo={renderDemoVideo}
+          isRenderingVideo={isRenderingVideo}
+          renderState={renderState}
+        />
       </section>
     </main>
   );

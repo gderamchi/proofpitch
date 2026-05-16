@@ -67,7 +67,7 @@ export async function captureLaunchDemo(input: CreateLaunchPackRequest): Promise
         }>;
       };
     }>;
-    const { chromium } = await dynamicImport("playwright");
+    const { chromium } = await dynamicImport("playwright-chromium");
     const assetDir = process.env.PROOFPITCH_RELEASE_ASSET_DIR || ".proofpitch/release-assets";
     await mkdir(assetDir, { recursive: true });
     const browser = await chromium.launch({ headless: true });

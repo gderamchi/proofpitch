@@ -613,8 +613,9 @@ describe("backend contracts", () => {
       uploadStatus: "blocked_by_provider_review",
     });
     expect(assets.demoVideo.url).toBeUndefined();
-    expect(assets.demoVideo.error).toContain("Playwright capture");
+    expect(assets.demoVideo.error).toContain("Remotion render action");
     expect(assets.demoVideo.renderProps?.demoSteps.join(" ")).toContain("Paste context");
+    expect(assets.demoVideo.renderProps?.demoPath).toBeUndefined();
   });
 
   it("keeps the local renderer disabled unless explicitly enabled and supports dry-run commands", async () => {
@@ -651,7 +652,27 @@ describe("backend contracts", () => {
     });
     expect(dryRun.enabled).toBe(true);
     expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).not.toContain("remotion render");
+    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
+  });
+
+  it("keeps user demo path instructions inside Remotion render props", async () => {
+    const { buildReleaseAssets } = await import("../lib/release-assets");
+    const assets = await buildReleaseAssets({
+      input: {
+        sourceUrl: "https://example.com",
+        productName: "ProofPitch",
+        targetAudience: "Founder-led B2B teams",
+        launchGoal: "Release with a guided product demo video",
+        demoInstructions: "Accept cookies, search pricing, then scroll to the CTA.",
+      },
+      pitchPack: buildPitchPack(),
+      screenshots: [],
+    });
+
+    expect(assets.demoVideo.renderProps?.demoPath).toBe(
+      "Accept cookies, search pricing, then scroll to the CTA.",
+    );
   });
 });
 

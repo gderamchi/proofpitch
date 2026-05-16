@@ -25,7 +25,11 @@ export async function POST(request: Request, context: RouteContext) {
       launchPackId: id,
       pitchDeck: detail.launchPack.pitchDeck,
       demoVideo: detail.launchPack.demoVideo,
-      dryRun: body.dryRun !== false,
+      captureSite: body.captureSite !== false,
+      dryRun: body.dryRun === true,
+      force: body.force === true,
+      renderDeck: body.renderDeck === true,
+      renderVideo: body.renderVideo !== false,
     });
 
     return NextResponse.json(result);

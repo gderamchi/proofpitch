@@ -167,6 +167,7 @@ export const RemotionRenderPropsSchema = z.object({
   productName: z.string(),
   oneLiner: z.string(),
   sourceUrl: z.string().url(),
+  demoPath: z.string().optional(),
   screenshots: z.array(ProductDemoScreenshotSchema),
   demoSteps: z.array(z.string()).min(1),
   captions: z.array(z.string()),
@@ -260,6 +261,7 @@ export type LaunchScreenshot = z.infer<typeof LaunchScreenshotSchema>;
 export type SlidevExportFormat = z.infer<typeof SlidevExportFormatSchema>;
 export type PitchDeckExport = z.infer<typeof PitchDeckExportSchema>;
 export type PitchDeck = z.infer<typeof PitchDeckSchema>;
+export type ProductDemoScreenshot = z.infer<typeof ProductDemoScreenshotSchema>;
 export type RemotionRenderProps = z.infer<typeof RemotionRenderPropsSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
 export type LaunchPack = z.infer<typeof LaunchPackSchema>;
