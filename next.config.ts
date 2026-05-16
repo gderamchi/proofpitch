@@ -4,7 +4,6 @@ const renderRouteIncludes = [
   "./node_modules/@esbuild/**/*",
   "./node_modules/@mediabunny/**/*",
   "./node_modules/@remotion/**/*",
-  "./node_modules/@rspack/**/*",
   "./node_modules/mediabunny/**/*",
   "./node_modules/remotion/**/*",
   "./remotion/**/*",

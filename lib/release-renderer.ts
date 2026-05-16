@@ -133,6 +133,7 @@ async function renderDemoVideoWithRemotion({
     outDir: path.join(outputDir, "remotion-bundle"),
     enableCaching: false,
     publicDir: path.join(process.cwd(), "public"),
+    rspack: false,
   });
   const composition = await selectComposition({
     binariesDirectory,
