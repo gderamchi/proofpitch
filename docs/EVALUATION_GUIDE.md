@@ -131,6 +131,7 @@ The production build route list should include these API routes:
 - `/api/launch-packs/[id]/outline`
 - `/api/launch-packs/[id]/recording`
 - `/api/launch-packs/[id]/render`
+- `/api/launch-packs/[id]/social-drafts`
 - `/api/launch-packs/[id]/video`
 - `/api/pioneer-extract`
 - `/api/pitch-packs`
@@ -147,7 +148,6 @@ The production build route list should include these API routes:
 - Generated hero images.
 - Audio generation or voiceover.
 - External publishing workflows.
-- Channel-specific social post drafts.
 - A full deck editor.
 - Treating a deck render as a product demo video.
 

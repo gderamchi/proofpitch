@@ -472,6 +472,7 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
     undefined;
   vi.resetModules();
+  vi.doUnmock("../lib/release-renderer");
 });
 
 describe("backend contracts", () => {
@@ -1040,6 +1041,105 @@ describe("local backend flow", () => {
     expect(renderBody.pitchDeck.renderState).toBe("queued");
     expect(renderBody.render.commands.join("\n")).toContain("@slidev/cli");
     expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
+  });
+
+  it("refreshes social drafts through the launch-pack API and persists the local pack", async () => {
+    const service = await import("../lib/launch-pack-service");
+    const { POST: refreshDrafts } = await import("../app/api/launch-packs/[id]/social-drafts/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
+    });
+    const outlined = await service.approveLaunchPackDeckOutline(created.id, {
+      acceptedClaimIds: ["claim-1"],
+    });
+
+    const missingResponse = await refreshDrafts(
+      new Request("https://proofpitch.test/api/launch-packs/missing/social-drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(missingResponse.status).toBe(404);
+
+    const refreshResponse = await refreshDrafts(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/social-drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ launchPack: outlined }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const refreshed = await refreshResponse.json();
+    const detail = await service.getLaunchPackDetail(created.id);
+
+    expect(refreshResponse.status).toBe(200);
+    expect(refreshed.socialDrafts.x.status).toBe("needs_video");
+    expect(detail?.launchPack.socialDrafts?.generatedAt).toBe(refreshed.socialDrafts.generatedAt);
+  });
+
+  it("persists rendered video metadata before returning refreshed social drafts", async () => {
+    vi.doMock("../lib/release-renderer", () => ({
+      renderReleaseArtifacts: vi.fn(async () => ({
+        enabled: true,
+        commands: [],
+        artifacts: [
+          {
+            type: "video",
+            format: "mp4",
+            status: "ready",
+            path: "/tmp/proofpitch-demo-video.mp4",
+          },
+        ],
+        videoUrl: "/api/launch-packs/video-ready-pack/video",
+      })),
+    }));
+
+    const service = await import("../lib/launch-pack-service");
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
+    });
+    const videoPack = {
+      ...created,
+      id: "video-ready-pack",
+    };
+
+    const renderResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/video-ready-pack/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: false,
+          launchPack: videoPack,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "video-ready-pack" }) },
+    );
+    const renderBody = await renderResponse.json();
+    const detail = await service.getLaunchPackDetail("video-ready-pack");
+
+    expect(renderResponse.status).toBe(200);
+    expect(renderBody.launchPack.demoVideo).toMatchObject({
+      status: "ready",
+      url: "/api/launch-packs/video-ready-pack/video",
+    });
+    expect(renderBody.launchPack.socialDrafts.assets.video.url).toBe("/api/launch-packs/video-ready-pack/video");
+    expect(detail?.launchPack.demoVideo.url).toBe("/api/launch-packs/video-ready-pack/video");
+    expect(detail?.launchPack.socialDrafts?.assets.video.url).toBe("/api/launch-packs/video-ready-pack/video");
   });
 
   it("approves and queues render from the request payload when anonymous local storage is unavailable", async () => {
