@@ -38,7 +38,7 @@ Request fields:
 - `demoInstructions`: optional, up to 2000 characters.
 - `deckMode`: required, one of `investor`, `sales`, or `launch`.
 
-Response: a `LaunchPack` containing request metadata, provider statuses, `pitchPack`, `claimReview`, pending or ready `pitchDeck`, `demoVideo`, captions, screenshots, and checklist.
+Response: a `LaunchPack` containing request metadata, provider statuses, `pitchPack`, `claimReview`, pending or ready `pitchDeck`, `demoVideo`, captions, screenshots, checklist, and generated `socialDrafts`.
 
 Common errors:
 
@@ -90,6 +90,30 @@ Common errors:
 - `404`: release pack was not found.
 - `500`: outline approval failed.
 
+### `POST /api/launch-packs/:id/social-drafts`
+
+Refreshes X, LinkedIn, and Product Hunt launch drafts for the current pack. The drafts are persisted into `LaunchPack.socialDrafts` and include the latest demo-video and pitch-deck asset state.
+
+Request:
+
+```json
+{
+  "launchPack": {
+    "id": "launch-id"
+  }
+}
+```
+
+`launchPack` is optional. It lets the caller provide the full current launch-pack object when local persistence cannot find the id.
+
+Response: updated `LaunchPack` with `socialDrafts.assets.video`, `socialDrafts.assets.deck`, and platform drafts for `x`, `linkedin`, and `productHunt`.
+
+Common errors:
+
+- `400`: invalid release pack id or invalid launch-pack shape.
+- `404`: release pack was not found.
+- `500`: social draft refresh failed.
+
 ### `POST /api/launch-packs/:id/render`
 
 Starts render work for approved deck assets and/or the Remotion demo video.
@@ -119,11 +143,13 @@ Video render request used by the homepage:
 Behavior:
 
 - If `renderVideo` is exactly `true`, the route uses the video render path.
-- Otherwise it uses the deck-render path and returns `{ "pitchDeck": ..., "render": ..., "requiresSignIn": false }`.
-- Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`.
+- Otherwise it uses the deck-render path and returns `{ "launchPack": ..., "pitchDeck": ..., "render": ..., "requiresSignIn": false }`.
+- Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`; production rendering is enabled by the Vercel server runtime.
 - Product-site capture is controlled by `PROOFPITCH_PLAYWRIGHT_CAPTURE`.
-- Public video render requests must use a launch pack already available through server-side lookup. They cannot force rendering with request-controlled `force` and cannot supply a fallback `launchPack` body.
+- Public video render requests prefer server-side lookup, but may include a full `launchPack` fallback when local serverless storage cannot find the id.
+- Public video render requests cannot set `force`; local rendering remains controlled only by server environment.
 - If Supabase admin env vars are configured, a ready MP4 is uploaded to the private `proofpitch-exports` bucket and returned as a signed URL.
+- When a video render finishes, `demoVideo` and `socialDrafts` are refreshed before the response is returned.
 
 Common errors:
 

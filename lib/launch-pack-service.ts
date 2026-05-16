@@ -8,14 +8,17 @@ import {
 import { getLocalLaunchPack, saveLocalLaunchPack, updateLocalLaunchPack } from "./local-store";
 import { buildClaimReview } from "./deck-spec";
 import { renderReleaseArtifacts } from "./release-renderer";
+import { buildSocialDrafts } from "./social-drafts";
 import {
   ApproveDeckOutlineRequestSchema,
   CreateLaunchPackRequestSchema,
   LaunchPackSchema,
+  RefreshSocialDraftsRequestSchema,
   RenderLaunchDeckRequestSchema,
   type ApproveDeckOutlineRequest,
   type CreateLaunchPackRequest,
   type LaunchPack,
+  type RefreshSocialDraftsRequest,
   type RenderLaunchDeckRequest,
 } from "./schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "./supabase/server";
@@ -91,7 +94,7 @@ function buildLaunchPack({
     "Use the separate pitch deck after the product demo, not as a replacement for it.",
   ].join(" ");
 
-  return LaunchPackSchema.parse({
+  const launchPack: Omit<LaunchPack, "socialDrafts"> = {
     id: crypto.randomUUID(),
     status: "running",
     sourceUrl: input.sourceUrl,
@@ -116,7 +119,9 @@ function buildLaunchPack({
     providers,
     createdAt: now,
     updatedAt: now,
-  });
+  };
+
+  return withSocialDrafts(launchPack);
 }
 
 async function saveSupabaseLaunchPack(ctx: SupabaseContext, launchPack: LaunchPack) {
@@ -179,7 +184,9 @@ async function persistLaunchPack(launchPack: LaunchPack) {
     };
   }
 
-  updateLocalLaunchPack(launchPack.id, launchPack);
+  if (!updateLocalLaunchPack(launchPack.id, launchPack)) {
+    saveLocalLaunchPack(launchPack);
+  }
 
   return {
     source: "local" as const,
@@ -232,6 +239,13 @@ function launchPackInput(launchPack: LaunchPack): CreateLaunchPackRequest {
   };
 }
 
+function withSocialDrafts(input: Omit<LaunchPack, "socialDrafts"> | LaunchPack): LaunchPack {
+  return LaunchPackSchema.parse({
+    ...input,
+    socialDrafts: buildSocialDrafts(input),
+  });
+}
+
 export async function approveLaunchPackDeckOutline(
   id: string,
   input: ApproveDeckOutlineRequest,
@@ -261,7 +275,7 @@ export async function approveLaunchPackDeckOutline(
   }
 
   const accepted = new Set(pitchDeck.outline.acceptedClaimIds);
-  const updated = LaunchPackSchema.parse({
+  const updated = withSocialDrafts({
     ...base,
     status: "completed",
     claimReview: {
@@ -281,10 +295,21 @@ export async function approveLaunchPackDeckOutline(
 }
 
 function patchPitchDeck(launchPack: LaunchPack, patch: Partial<LaunchPack["pitchDeck"]>) {
-  return LaunchPackSchema.parse({
+  return withSocialDrafts({
     ...launchPack,
     pitchDeck: {
       ...launchPack.pitchDeck,
+      ...patch,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function patchDemoVideo(launchPack: LaunchPack, patch: Partial<LaunchPack["demoVideo"]>) {
+  return withSocialDrafts({
+    ...launchPack,
+    demoVideo: {
+      ...launchPack.demoVideo,
       ...patch,
     },
     updatedAt: new Date().toISOString(),
@@ -420,6 +445,69 @@ export async function startLaunchPackDeckRender(
     render,
     requiresSignIn: false,
   };
+}
+
+export async function markLaunchPackDemoVideoReady({
+  id,
+  launchPack,
+  videoUrl,
+}: {
+  id: string;
+  launchPack?: LaunchPack;
+  videoUrl: string;
+}) {
+  const detail = await getLaunchPackDetail(id);
+
+  if (!detail && launchPack?.id !== id) {
+    return null;
+  }
+
+  const base = detail?.launchPack ?? launchPack;
+
+  if (!base) {
+    return null;
+  }
+
+  const updated = patchDemoVideo(base, {
+    status: "ready",
+    url: videoUrl,
+    durationSeconds: base.demoVideo.durationSeconds && base.demoVideo.durationSeconds > 0
+      ? base.demoVideo.durationSeconds
+      : 24,
+    uploadStatus: videoUrl.startsWith("http") ? "uploaded" : "not_required",
+    error: undefined,
+  });
+
+  await persistLaunchPack(updated);
+
+  return updated;
+}
+
+export async function rebuildLaunchPackSocialDrafts(
+  id: string,
+  input: RefreshSocialDraftsRequest,
+) {
+  const request = RefreshSocialDraftsRequestSchema.parse(input);
+  const detail = await getLaunchPackDetail(id);
+
+  if (!detail && request.launchPack?.id !== id) {
+    return null;
+  }
+
+  const base = detail?.launchPack ?? request.launchPack;
+
+  if (!base) {
+    return null;
+  }
+
+  const updated = withSocialDrafts({
+    ...base,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await persistLaunchPack(updated);
+
+  return updated;
 }
 
 async function getSupabaseLaunchPack(id: string): Promise<LaunchPackDetail | null> {

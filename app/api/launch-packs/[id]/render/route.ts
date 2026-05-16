@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
-import { getLaunchPackDetail, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
+import { getLaunchPackDetail, markLaunchPackDemoVideoReady, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
 import { renderReleaseArtifacts } from "@/lib/release-renderer";
 import { RenderLaunchDeckRequestSchema, RenderLaunchVideoRequestSchema } from "@/lib/schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type RouteContext = {
   params: Promise<{
@@ -70,6 +71,7 @@ export async function POST(request: Request, context: RouteContext) {
       }
 
       return NextResponse.json({
+        launchPack: result.launchPack,
         pitchDeck: result.launchPack.pitchDeck,
         render: result.render,
         requiresSignIn: false,
@@ -78,9 +80,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     const input = RenderLaunchVideoRequestSchema.parse(body);
     const detail = await getLaunchPackDetail(id);
-    const launchPack = detail?.launchPack;
+    const launchPack = detail?.launchPack ?? input.launchPack;
 
-    if (!launchPack) {
+    if (!launchPack || launchPack.id !== id) {
       return NextResponse.json({ error: "Release pack not found." }, { status: 404 });
     }
 
@@ -96,10 +98,19 @@ export async function POST(request: Request, context: RouteContext) {
     });
     const videoArtifact = result.artifacts.find((artifact) => artifact.type === "video" && artifact.status === "ready");
     const uploadedVideoUrl = videoArtifact ? await uploadRenderedVideo(id, videoArtifact.path) : null;
+    const videoUrl = uploadedVideoUrl ?? result.videoUrl;
+    const updatedLaunchPack = videoArtifact && videoUrl
+      ? await markLaunchPackDemoVideoReady({
+          id,
+          launchPack,
+          videoUrl,
+        })
+      : null;
 
     return NextResponse.json({
       ...result,
-      videoUrl: uploadedVideoUrl ?? result.videoUrl,
+      launchPack: updatedLaunchPack ?? launchPack,
+      videoUrl,
     });
   } catch (error) {
     if (error instanceof ZodError) {

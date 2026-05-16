@@ -9,7 +9,11 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Link,
   Loader2,
+  RefreshCw,
+  Send,
+  Video,
 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
@@ -35,6 +39,7 @@ const deckModes: Array<{ id: DeckMode; label: string }> = [
 type RenderDeckResponse = {
   error?: string;
   requiresSignIn?: boolean;
+  launchPack?: LaunchPack;
   pitchDeck?: LaunchPack["pitchDeck"];
   render?: {
     enabled: boolean;
@@ -53,6 +58,7 @@ type RenderDeckResponse = {
 type RenderVideoResponse = {
   error?: string;
   detail?: string;
+  launchPack?: LaunchPack;
   videoUrl?: string;
   artifacts?: Array<{
     type?: string;
@@ -151,6 +157,59 @@ function visualUrlLabel(url?: string) {
 
 function isImageUrl(url?: string) {
   return Boolean(url?.match(/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i) || url?.startsWith("data:image/"));
+}
+
+function socialStatusLabel(status: string) {
+  if (status === "needs_video") {
+    return "Needs video";
+  }
+
+  if (status === "needs_deck") {
+    return "Needs deck";
+  }
+
+  if (status === "manual_step") {
+    return "Manual step";
+  }
+
+  return "Ready";
+}
+
+function socialStatusTone(status: string) {
+  if (status === "ready") {
+    return "border-emerald-800 bg-emerald-50 text-emerald-950";
+  }
+
+  if (status === "manual_step") {
+    return "border-sky-800 bg-sky-50 text-sky-950";
+  }
+
+  return "border-amber-800 bg-amber-50 text-amber-950";
+}
+
+function formatProductHuntDraft(draft: NonNullable<LaunchPack["socialDrafts"]>["productHunt"]) {
+  return [
+    `Name: ${draft.productName}`,
+    `Tagline: ${draft.tagline}`,
+    `Description: ${draft.description}`,
+    `Launch tags: ${draft.launchTags.join(", ")}`,
+    "",
+    "First comment:",
+    draft.firstComment,
+    "",
+    `Maker note: ${draft.makerNote}`,
+    "",
+    "Media checklist:",
+    ...draft.mediaChecklist.map((item) => `- ${item}`),
+  ].join("\n");
+}
+
+function socialDraftTexts(socialDrafts: NonNullable<LaunchPack["socialDrafts"]>) {
+  return {
+    x: socialDrafts.x.post,
+    linkedin: socialDrafts.linkedin.post,
+    productHunt: formatProductHuntDraft(socialDrafts.productHunt),
+  };
 }
 
 function SlideVisualPanel({
@@ -424,6 +483,261 @@ function SlideDeckPreview({
   );
 }
 
+function LaunchAssetsStrip({
+  launchPack,
+  onCopy,
+}: {
+  launchPack: LaunchPack;
+  onCopy: (text: string) => Promise<void>;
+}) {
+  const pdfExport = launchPack.pitchDeck.exports.find((item) => item.format === "pdf");
+  const pdfUrl = pdfExport?.signedUrl;
+  const videoReady = launchPack.demoVideo.status === "ready" && Boolean(launchPack.demoVideo.url);
+
+  return (
+    <div className="grid gap-2 border border-stone-300 bg-[#f8fbf8] p-3 text-xs text-stone-700">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 font-semibold text-stone-950">
+          <Video size={14} />
+          Demo video
+        </span>
+        <span className={`border px-2 py-1 font-semibold ${statusTone(launchPack.demoVideo.status)}`}>
+          {videoReady ? "ready" : launchPack.demoVideo.status}
+        </span>
+        {launchPack.demoVideo.url ? (
+          <>
+            <a
+              href={launchPack.demoVideo.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 border border-stone-900 bg-white px-2 py-1 font-semibold text-stone-950 transition hover:bg-teal-50"
+            >
+              <ExternalLink size={13} />
+              Open
+            </a>
+            <a
+              href={launchPack.demoVideo.url}
+              download
+              className="inline-flex items-center gap-1 border border-stone-900 bg-white px-2 py-1 font-semibold text-stone-950 transition hover:bg-teal-50"
+            >
+              <Download size={13} />
+              Download
+            </a>
+          </>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 font-semibold text-stone-950">
+          <FileText size={14} />
+          Pitch deck PDF
+        </span>
+        <span className={`border px-2 py-1 font-semibold ${statusTone(pdfExport?.status ?? "pending")}`}>
+          {pdfExport?.status ?? "pending"}
+        </span>
+        {pdfUrl ? (
+          <a
+            href={pdfUrl}
+            download
+            className="inline-flex items-center gap-1 border border-stone-900 bg-white px-2 py-1 font-semibold text-stone-950 transition hover:bg-teal-50"
+          >
+            <Download size={13} />
+            Download
+          </a>
+        ) : pdfExport?.path ? (
+          <span className="truncate text-stone-500">Local: {pdfExport.path}</span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 font-semibold text-stone-950">
+          <Link size={14} />
+          Product URL
+        </span>
+        <button
+          type="button"
+          onClick={() => void onCopy(launchPack.sourceUrl)}
+          className="inline-flex items-center gap-1 border border-stone-900 bg-white px-2 py-1 font-semibold text-stone-950 transition hover:bg-teal-50"
+        >
+          <Clipboard size={13} />
+          Copy
+        </button>
+        <a
+          href={launchPack.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 border border-stone-900 bg-white px-2 py-1 font-semibold text-stone-950 transition hover:bg-teal-50"
+        >
+          <ExternalLink size={13} />
+          Open
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function LaunchTray({
+  launchPack,
+  onCopy,
+  onRefresh,
+  isRefreshing,
+}: {
+  launchPack: LaunchPack;
+  onCopy: (text: string) => Promise<void>;
+  onRefresh: () => Promise<void>;
+  isRefreshing: boolean;
+}) {
+  const socialDrafts = launchPack.socialDrafts;
+  const [activeTab, setActiveTab] = useState<"x" | "linkedin" | "productHunt">("x");
+  const [edits, setEdits] = useState(() => (socialDrafts ? socialDraftTexts(socialDrafts) : null));
+
+  if (!socialDrafts || !edits) {
+    return (
+      <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-stone-950">Launch tray</p>
+            <p className="mt-1 text-xs leading-5 text-stone-600">Social drafts are not generated for this pack yet.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void onRefresh()}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 bg-stone-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRefreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            Generate
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { id: "x" as const, label: "X", draft: socialDrafts.x, text: edits.x },
+    { id: "linkedin" as const, label: "LinkedIn", draft: socialDrafts.linkedin, text: edits.linkedin },
+    { id: "productHunt" as const, label: "Product Hunt", draft: socialDrafts.productHunt, text: edits.productHunt },
+  ];
+  const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const activeComposerUrl =
+    activeTab === "x"
+      ? socialDrafts.x.composerUrl
+      : activeTab === "linkedin"
+        ? socialDrafts.linkedin.composerUrl
+        : socialDrafts.productHunt.submitUrl;
+  const activeVideoNote =
+    activeTab === "x"
+      ? socialDrafts.x.videoNote
+      : activeTab === "linkedin"
+        ? socialDrafts.linkedin.videoNote
+        : socialDrafts.productHunt.videoNote;
+  const activeDeckNote =
+    activeTab === "x"
+      ? socialDrafts.x.deckNote
+      : activeTab === "linkedin"
+        ? socialDrafts.linkedin.deckNote
+        : "Keep the deck as a follow-up asset for Product Hunt replies.";
+
+  function updateDraftText(value: string) {
+    setEdits((current) => current ? { ...current, [activeTab]: value } : current);
+  }
+
+  function openComposer() {
+    if (activeTab === "linkedin") {
+      void onCopy(active.text).then(() => window.open(activeComposerUrl, "_blank", "noopener,noreferrer"));
+      return;
+    }
+
+    window.open(activeComposerUrl, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <div className="grid gap-3 border border-stone-300 bg-white p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-stone-950">Launch tray</p>
+          <p className="mt-1 text-xs leading-5 text-stone-600">
+            Drafts are ready to copy. Video attachment stays manual in V1.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-2 border border-stone-900 bg-white px-3 py-2 text-xs font-semibold text-stone-950 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isRefreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          Refresh
+        </button>
+      </div>
+
+      <LaunchAssetsStrip launchPack={launchPack} onCopy={onCopy} />
+
+      <div className="grid grid-cols-3 border border-stone-300 bg-[#f8fbf8] p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-2 py-2 text-xs font-semibold transition ${
+              activeTab === tab.id ? "bg-stone-950 text-white" : "text-stone-700 hover:bg-white"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`border px-2 py-1 text-xs font-semibold ${socialStatusTone(active.draft.status)}`}>
+          {socialStatusLabel(active.draft.status)}
+        </span>
+        <span className="text-xs leading-5 text-stone-600">{activeVideoNote}</span>
+      </div>
+
+      <textarea
+        value={active.text}
+        onChange={(event) => updateDraftText(event.target.value)}
+        rows={activeTab === "x" ? 5 : 10}
+        className="w-full resize-y border border-stone-300 bg-[#f8fbf8] p-3 text-xs leading-5 text-stone-800 outline-none focus:border-teal-800"
+      />
+
+      {activeTab === "productHunt" ? (
+        <div className="grid gap-2 border border-stone-300 bg-[#f8fbf8] p-3 text-xs leading-5 text-stone-700">
+          <p>
+            <span className="font-semibold text-stone-950">Tagline:</span> {socialDrafts.productHunt.tagline}
+          </p>
+          <p>
+            <span className="font-semibold text-stone-950">Description:</span> {socialDrafts.productHunt.description}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="grid gap-1 text-xs leading-5 text-stone-600">
+        <p>{activeDeckNote}</p>
+        {activeTab === "productHunt" ? <p>Product Hunt video field expects a YouTube URL, so publish the MP4 there first.</p> : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void onCopy(active.text)}
+          className="inline-flex items-center gap-2 bg-stone-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
+        >
+          <Clipboard size={14} />
+          Copy draft
+        </button>
+        <button
+          type="button"
+          onClick={openComposer}
+          className="inline-flex items-center gap-2 border border-stone-900 bg-white px-3 py-2 text-xs font-semibold text-stone-950 transition hover:bg-teal-50"
+        >
+          <Send size={14} />
+          {activeTab === "productHunt" ? "Open Product Hunt" : "Open composer"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OutputPreview({
   launchPack,
   isGenerating,
@@ -436,7 +750,9 @@ function OutputPreview({
   onRenderDeck,
   onCopy,
   onRenderVideo,
+  onRefreshSocialDrafts,
   isRenderingVideo,
+  isRefreshingDrafts,
   renderState,
 }: {
   launchPack: LaunchPack | null;
@@ -450,7 +766,9 @@ function OutputPreview({
   onRenderDeck: () => Promise<void>;
   onCopy: (text: string) => Promise<void>;
   onRenderVideo: () => Promise<void>;
+  onRefreshSocialDrafts: () => Promise<void>;
   isRenderingVideo: boolean;
+  isRefreshingDrafts: boolean;
   renderState: string | null;
 }) {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -538,6 +856,14 @@ function OutputPreview({
           </div>
         ))}
       </div>
+
+      <LaunchTray
+        key={`${launchPack.id}:${launchPack.socialDrafts?.generatedAt ?? "empty"}`}
+        launchPack={launchPack}
+        onCopy={onCopy}
+        onRefresh={onRefreshSocialDrafts}
+        isRefreshing={isRefreshingDrafts}
+      />
 
       {launchPack.demoVideo.url ? (
         <div className="grid gap-3">
@@ -745,6 +1071,7 @@ export function ProofPitchLanding() {
   const [renderMessage, setRenderMessage] = useState<string | null>(null);
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [videoRenderMessage, setVideoRenderMessage] = useState<string | null>(null);
+  const [isRefreshingDrafts, setIsRefreshingDrafts] = useState(false);
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -854,14 +1181,7 @@ export function ProofPitchLanding() {
         return;
       }
 
-      setResult((current) =>
-        current && data.pitchDeck
-          ? {
-              ...current,
-              pitchDeck: data.pitchDeck,
-            }
-          : current,
-      );
+      setResult((current) => data.launchPack ?? (current && data.pitchDeck ? { ...current, pitchDeck: data.pitchDeck } : current));
       if (data.render && !data.render.enabled) {
         setRenderMessage(
           "PDF render is disabled in this environment. Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 to render locally.",
@@ -895,6 +1215,7 @@ export function ProofPitchLanding() {
         body: JSON.stringify({
           captureSite: true,
           dryRun: false,
+          launchPack: result,
           renderDeck: false,
           renderVideo: true,
         }),
@@ -913,20 +1234,30 @@ export function ProofPitchLanding() {
         throw new Error(data.error ?? "Video render did not finish.");
       }
 
-      const videoUrl = `${data.videoUrl ?? `/api/launch-packs/${result.id}/video`}?v=${Date.now()}`;
+      const videoUrl = data.videoUrl ?? `/api/launch-packs/${result.id}/video`;
 
-      setResult({
-        ...result,
-        demoVideo: {
-          ...result.demoVideo,
-          status: "ready",
-          durationSeconds: 24,
-          uploadStatus: "not_required",
-          url: videoUrl,
-          error: undefined,
-        },
-        updatedAt: new Date().toISOString(),
-      });
+      setResult(
+        data.launchPack
+          ? {
+              ...data.launchPack,
+              demoVideo: {
+                ...data.launchPack.demoVideo,
+                url: videoUrl,
+              },
+            }
+          : {
+              ...result,
+              demoVideo: {
+                ...result.demoVideo,
+                status: "ready",
+                durationSeconds: 24,
+                uploadStatus: "not_required",
+                url: videoUrl,
+                error: undefined,
+              },
+              updatedAt: new Date().toISOString(),
+            },
+      );
       setVideoRenderMessage("Demo video rendered.");
     } catch (renderError) {
       const message = renderError instanceof Error ? renderError.message : "Video render failed.";
@@ -935,6 +1266,38 @@ export function ProofPitchLanding() {
       setVideoRenderMessage(null);
     } finally {
       setIsRenderingVideo(false);
+    }
+  }
+
+  async function refreshSocialDrafts() {
+    if (!result) {
+      return;
+    }
+
+    setIsRefreshingDrafts(true);
+    setError(null);
+    setRenderMessage(null);
+    setVideoRenderMessage(null);
+
+    try {
+      const response = await fetch(`/api/launch-packs/${result.id}/social-drafts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ launchPack: result }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail ?? data?.error ?? "Social draft refresh failed.");
+      }
+
+      setResult(data as LaunchPack);
+    } catch (draftError) {
+      setError(draftError instanceof Error ? draftError.message : "Social draft refresh failed.");
+    } finally {
+      setIsRefreshingDrafts(false);
     }
   }
 
@@ -1060,7 +1423,9 @@ export function ProofPitchLanding() {
           onRenderDeck={renderDeck}
           onCopy={copyText}
           onRenderVideo={renderDemoVideo}
+          onRefreshSocialDrafts={refreshSocialDrafts}
           isRenderingVideo={isRenderingVideo}
+          isRefreshingDrafts={isRefreshingDrafts}
           renderState={videoRenderMessage}
         />
       </section>

@@ -101,7 +101,8 @@ ProofPitch is organized as a small App Router application:
 - `components/proofpitch-landing.tsx` owns the client-side launch-pack workflow.
 - `app/api/**/route.ts` contains the JSON and artifact API routes.
 - `lib/schemas.ts` defines the Zod request and response contracts.
-- `lib/launch-pack-service.ts` builds launch packs, claim review, deck outlines, and local persistence updates.
+- `lib/launch-pack-service.ts` builds launch packs, claim review, deck outlines, launch drafts, and local persistence updates.
+- `lib/social-drafts.ts` builds ready-to-copy X, LinkedIn, and Product Hunt drafts from the latest video/deck assets.
 - `lib/deck-spec.ts` compiles approved claims into deterministic Slidev markdown.
 - `lib/pitch-pack-service.ts` handles provider-backed and fallback pitch-pack generation.
 - `lib/openai.ts`, `lib/tavily.ts`, and `lib/pioneer.ts` isolate external provider adapters.

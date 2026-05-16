@@ -9,6 +9,7 @@ import {
   PitchPackSchema,
   PitchDeckSchema,
   RemotionRenderPropsSchema,
+  type LaunchPack,
   type PitchPack,
 } from "../lib/schemas";
 
@@ -62,6 +63,81 @@ function buildPitchPack(rawInput = "ProofPitch turns notes into verified pitch p
     },
     risks: ["Verification is evidence-aided, not a legal guarantee."],
     nextSteps: ["Connect Supabase and export Markdown."],
+  };
+}
+
+function buildSocialDraftInput(
+  overrides: Partial<
+    Pick<
+      LaunchPack,
+      | "sourceUrl"
+      | "productName"
+      | "targetAudience"
+      | "launchGoal"
+      | "claimReview"
+      | "demoVideo"
+      | "pitchDeck"
+      | "pitchPack"
+    >
+  > = {},
+) {
+  const pitchPack = buildPitchPack();
+  const base: Pick<
+    LaunchPack,
+    | "sourceUrl"
+    | "productName"
+    | "targetAudience"
+    | "launchGoal"
+    | "claimReview"
+    | "demoVideo"
+    | "pitchDeck"
+    | "pitchPack"
+  > = {
+    sourceUrl: "https://example.com",
+    productName: "ProofPitch",
+    targetAudience: "Founder-led B2B teams",
+    launchGoal: "Release with a pitch deck and product demo video",
+    claimReview: {
+      status: "approved",
+      acceptedClaimIds: ["claim-1"],
+      rejectedClaimIds: ["claim-2"],
+    },
+    demoVideo: {
+      status: "ready",
+      url: "https://assets.test/demo-video.mp4",
+      durationSeconds: 24,
+      uploadStatus: "uploaded",
+      renderer: "remotion",
+      compositionId: "ProofPitchProductDemo",
+    },
+    pitchDeck: {
+      status: "ready",
+      format: "slidev",
+      title: "ProofPitch release deck",
+      slideCount: 6,
+      renderState: "ready",
+      deckMode: "sales",
+      outline: {
+        status: "ready",
+        deckMode: "sales",
+        acceptedClaimIds: ["claim-1"],
+        slides: [],
+      },
+      markdown: "---\ntheme: default\n---\n# ProofPitch\n",
+      exports: [
+        {
+          format: "pdf",
+          status: "ready",
+          signedUrl: "https://assets.test/pitch-deck.pdf",
+        },
+      ],
+    },
+    pitchPack,
+  };
+
+  return {
+    ...base,
+    ...overrides,
   };
 }
 
@@ -396,6 +472,7 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
     undefined;
   vi.resetModules();
+  vi.doUnmock("../lib/release-renderer");
 });
 
 describe("backend contracts", () => {
@@ -738,6 +815,49 @@ describe("backend contracts", () => {
     expect(assets.demoVideo.renderProps?.demoPath).toBeUndefined();
   });
 
+  it("builds launch social drafts with video asset metadata and safe copy limits", async () => {
+    const { buildSocialDrafts } = await import("../lib/social-drafts");
+    const drafts = buildSocialDrafts(buildSocialDraftInput());
+    const serialized = JSON.stringify(drafts);
+
+    expect(drafts.assets.video).toMatchObject({
+      status: "ready",
+      url: "https://assets.test/demo-video.mp4",
+      format: "mp4",
+    });
+    expect(drafts.x.status).toBe("ready");
+    expect(drafts.linkedin.status).toBe("ready");
+    expect(drafts.productHunt.status).toBe("manual_step");
+    expect(drafts.x.post.length).toBeLessThanOrEqual(280);
+    expect(drafts.productHunt.tagline.length).toBeLessThanOrEqual(60);
+    expect(drafts.productHunt.description.length).toBeLessThanOrEqual(500);
+    expect(serialized).not.toContain("40%");
+    expect(serialized).not.toContain("improves conversion");
+  });
+
+  it("marks launch social drafts as needing video before the MP4 is rendered", async () => {
+    const { buildSocialDrafts } = await import("../lib/social-drafts");
+    const input = buildSocialDraftInput({
+      demoVideo: {
+        status: "pending",
+        durationSeconds: 0,
+        uploadStatus: "blocked_by_provider_review",
+        renderer: "remotion",
+        compositionId: "ProofPitchProductDemo",
+      },
+    });
+    const drafts = buildSocialDrafts(input);
+
+    expect(drafts.assets.video).toMatchObject({
+      status: "pending",
+      format: "mp4",
+    });
+    expect(drafts.assets.video.url).toBeUndefined();
+    expect(drafts.x.status).toBe("needs_video");
+    expect(drafts.linkedin.status).toBe("needs_video");
+    expect(drafts.productHunt.status).toBe("needs_video");
+  });
+
   it("keeps the local renderer disabled unless explicitly enabled and supports dry-run commands", async () => {
     const { buildReleaseAssets } = await import("../lib/release-assets");
     const { renderReleaseArtifacts } = await import("../lib/release-renderer");
@@ -764,6 +884,16 @@ describe("backend contracts", () => {
       artifacts: [],
     });
 
+    vi.stubEnv("VERCEL", "1");
+    const vercelDryRun = await renderReleaseArtifacts({
+      launchPackId: "launch-1",
+      pitchDeck: assets.pitchDeck,
+      demoVideo: assets.demoVideo,
+      dryRun: true,
+    });
+    expect(vercelDryRun.enabled).toBe(true);
+    vi.unstubAllEnvs();
+
     vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
     const dryRun = await renderReleaseArtifacts({
       launchPackId: "launch-1",
@@ -773,7 +903,9 @@ describe("backend contracts", () => {
     });
     expect(dryRun.enabled).toBe(true);
     expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.commands.join("\n")).toContain(
+      "@remotion/renderer renderMedia remotion/index.tsx",
+    );
     expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
   });
 
@@ -837,6 +969,8 @@ describe("local backend flow", () => {
       compositionId: "ProofPitchProductDemo",
       uploadStatus: "blocked_by_provider_review",
     });
+    expect(created.socialDrafts?.x.status).toBe("needs_video");
+    expect(created.socialDrafts?.assets.video.format).toBe("mp4");
     expect(Object.keys(created.providers)).toEqual(["openai", "tavily", "pioneer"]);
     expect(Object.keys(created).sort()).toEqual([
       "captions",
@@ -854,6 +988,7 @@ describe("local backend flow", () => {
       "productName",
       "providers",
       "screenshots",
+      "socialDrafts",
       "sourceUrl",
       "status",
       "targetAudience",
@@ -918,6 +1053,105 @@ describe("local backend flow", () => {
     expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
   });
 
+  it("refreshes social drafts through the launch-pack API and persists the local pack", async () => {
+    const service = await import("../lib/launch-pack-service");
+    const { POST: refreshDrafts } = await import("../app/api/launch-packs/[id]/social-drafts/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
+    });
+    const outlined = await service.approveLaunchPackDeckOutline(created.id, {
+      acceptedClaimIds: ["claim-1"],
+    });
+
+    const missingResponse = await refreshDrafts(
+      new Request("https://proofpitch.test/api/launch-packs/missing/social-drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(missingResponse.status).toBe(404);
+
+    const refreshResponse = await refreshDrafts(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/social-drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ launchPack: outlined }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const refreshed = await refreshResponse.json();
+    const detail = await service.getLaunchPackDetail(created.id);
+
+    expect(refreshResponse.status).toBe(200);
+    expect(refreshed.socialDrafts.x.status).toBe("needs_video");
+    expect(detail?.launchPack.socialDrafts?.generatedAt).toBe(refreshed.socialDrafts.generatedAt);
+  });
+
+  it("persists rendered video metadata before returning refreshed social drafts", async () => {
+    vi.doMock("../lib/release-renderer", () => ({
+      renderReleaseArtifacts: vi.fn(async () => ({
+        enabled: true,
+        commands: [],
+        artifacts: [
+          {
+            type: "video",
+            format: "mp4",
+            status: "ready",
+            path: "/tmp/proofpitch-demo-video.mp4",
+          },
+        ],
+        videoUrl: "/api/launch-packs/video-ready-pack/video",
+      })),
+    }));
+
+    const service = await import("../lib/launch-pack-service");
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
+    });
+    const videoPack = {
+      ...created,
+      id: "video-ready-pack",
+    };
+
+    const renderResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/video-ready-pack/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: false,
+          launchPack: videoPack,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "video-ready-pack" }) },
+    );
+    const renderBody = await renderResponse.json();
+    const detail = await service.getLaunchPackDetail("video-ready-pack");
+
+    expect(renderResponse.status).toBe(200);
+    expect(renderBody.launchPack.demoVideo).toMatchObject({
+      status: "ready",
+      url: "/api/launch-packs/video-ready-pack/video",
+    });
+    expect(renderBody.launchPack.socialDrafts.assets.video.url).toBe("/api/launch-packs/video-ready-pack/video");
+    expect(detail?.launchPack.demoVideo.url).toBe("/api/launch-packs/video-ready-pack/video");
+    expect(detail?.launchPack.socialDrafts?.assets.video.url).toBe("/api/launch-packs/video-ready-pack/video");
+  });
+
   it("approves and queues render from the request payload when anonymous local storage is unavailable", async () => {
     const { POST: create } = await import("../app/api/launch-packs/route");
     const { POST: approveOutline } = await import("../app/api/launch-packs/[id]/outline/route");
@@ -978,24 +1212,60 @@ describe("local backend flow", () => {
     expect(renderBody.pitchDeck.renderState).toBe("queued");
   });
 
-  it("does not allow public video render requests to force rendering or supply fallback launch packs", async () => {
+  it("allows public video render requests to carry the launch pack for serverless fallback", async () => {
+    vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
+    const service = await import("../lib/launch-pack-service");
     const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales",
+    });
+    const fallbackPack = {
+      ...created,
+      id: "fallback-pack",
+    };
 
-    const forcedResponse = await render(
-      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+    const fallbackDryRunResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/fallback-pack/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           captureSite: true,
-          force: true,
+          dryRun: true,
+          launchPack: fallbackPack,
           renderDeck: false,
           renderVideo: true,
         }),
       }),
-      { params: Promise.resolve({ id: "missing" }) },
+      { params: Promise.resolve({ id: "fallback-pack" }) },
+    );
+    const fallbackDryRunBody = await fallbackDryRunResponse.json();
+
+    expect(fallbackDryRunResponse.status).toBe(200);
+    expect(fallbackDryRunBody.enabled).toBe(true);
+    expect(fallbackDryRunBody.videoUrl).toBe("/api/launch-packs/fallback-pack/video");
+
+    const forceResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/fallback-pack/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: true,
+          force: true,
+          launchPack: fallbackPack,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "fallback-pack" }) },
     );
 
-    expect(forcedResponse.status).toBe(400);
+    expect(forceResponse.status).toBe(400);
 
     const fallbackResponse = await render(
       new Request("https://proofpitch.test/api/launch-packs/missing/render", {
