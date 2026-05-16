@@ -5,6 +5,8 @@ import type { ProductDemoScreenshot, RemotionRenderProps } from "@/lib/schemas";
 
 export const defaultReleaseDemoProps: RemotionRenderProps = {
   productName: "ProofPitch",
+  companyDescription:
+    "ProofPitch helps founder-led teams turn a product URL into a credible sales walkthrough, pitch deck, and claim ledger.",
   oneLiner: "Product URL to proof-backed pitch deck and product demo plan.",
   sourceUrl: "https://example.com",
   screenshots: [
@@ -90,6 +92,39 @@ function voiceoverTextForStep(props: RemotionRenderProps, stepIndex: number, fal
   return props.voiceoverSegments?.[stepIndex]?.text ?? subtleStepLabel(fallback);
 }
 
+type VoiceoverSegment = NonNullable<RemotionRenderProps["voiceoverSegments"]>[number];
+
+function estimateVoiceoverFrames(text: string, fps: number) {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const seconds = Math.max(3.8, Math.min(10, words / 2 + 1.8));
+
+  return Math.ceil(seconds * fps);
+}
+
+function voiceoverTimeline(segments: VoiceoverSegment[], fps: number, durationInFrames: number) {
+  const gapFrames = Math.round(fps * 1.1);
+  let cursor = Math.round(fps * 0.4);
+
+  return segments
+    .map((segment) => {
+      const durationInFramesForSegment = Math.ceil(
+        (segment.durationSeconds ? segment.durationSeconds * fps : estimateVoiceoverFrames(segment.text, fps)) +
+          gapFrames * 0.35,
+      );
+      const from = cursor;
+      const end = from + durationInFramesForSegment;
+
+      cursor = end + gapFrames;
+
+      return {
+        ...segment,
+        end,
+        from,
+      };
+    })
+    .filter((segment) => segment.from < durationInFrames - Math.round(fps * 0.6));
+}
+
 function CursorLayer({
   localProgress,
   screenshot,
@@ -101,7 +136,10 @@ function CursorLayer({
   const cursorX = interpolate(localProgress, [0, 0.62, 1], [16, target.x, target.x]);
   const cursorY = interpolate(localProgress, [0, 0.62, 1], [82, target.y, target.y]);
   const clickOpacity =
-    screenshot?.action === "click" || screenshot?.action === "consent" || screenshot?.action === "first_result"
+    screenshot?.action === "click" ||
+    screenshot?.action === "explore" ||
+    screenshot?.action === "consent" ||
+    screenshot?.action === "first_result"
       ? interpolate(localProgress, [0.56, 0.7, 0.86], [0, 0.9, 0], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
@@ -217,8 +255,10 @@ function CursorLayer({
 
 export function ReleaseDemo(props: RemotionRenderProps) {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
-  const stepCount = Math.max(1, props.demoSteps.length, props.screenshots.length);
+  const { durationInFrames, fps } = useVideoConfig();
+  const scheduledVoiceovers = voiceoverTimeline(props.voiceoverSegments ?? [], fps, durationInFrames);
+  const activeVoiceover = scheduledVoiceovers.find((segment) => frame >= segment.from && frame < segment.end);
+  const stepCount = Math.max(1, props.screenshots.length, props.demoSteps.length && !scheduledVoiceovers.length ? props.demoSteps.length : 0);
   const framesPerStep = durationInFrames / stepCount;
   const stepIndex = frameIndex(stepCount, frame, durationInFrames);
   const localFrame = frame - stepIndex * framesPerStep;
@@ -232,10 +272,17 @@ export function ReleaseDemo(props: RemotionRenderProps) {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const subtitleOpacity = interpolate(localProgress, [0, 0.12, 0.86, 1], [0, 0.82, 0.82, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const subtitleOpacity = activeVoiceover
+    ? interpolate(frame, [activeVoiceover.from, activeVoiceover.from + fps * 0.25, activeVoiceover.end - fps * 0.4, activeVoiceover.end], [0, 0.86, 0.86, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : scheduledVoiceovers.length
+      ? 0
+      : interpolate(localProgress, [0, 0.07, 0.94, 1], [0, 0.86, 0.86, 0], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
   const imageScale = 1.035 + localProgress * 0.045;
   const imageTranslateY =
     screenshot?.action === "scroll"
@@ -312,16 +359,12 @@ export function ReleaseDemo(props: RemotionRenderProps) {
             textAlign: "center",
           }}
         >
-          {voiceoverTextForStep(props, stepIndex, currentStep)}
+          {activeVoiceover?.text ?? voiceoverTextForStep(props, stepIndex, currentStep)}
         </div>
       </div>
-      {props.voiceoverSegments?.map((segment, index) =>
+      {scheduledVoiceovers.map((segment, index) =>
         segment.url ? (
-          <Sequence
-            key={`${segment.url}-${index}`}
-            from={Math.round(index * framesPerStep)}
-            durationInFrames={Math.ceil(framesPerStep)}
-          >
+          <Sequence key={`${segment.url}-${index}`} from={segment.from}>
             <Audio src={segment.url} volume={0.94} />
           </Sequence>
         ) : null,

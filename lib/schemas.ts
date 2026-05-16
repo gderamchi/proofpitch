@@ -44,12 +44,19 @@ export const GeneratePitchPackRequestSchema = z.object({
   ),
 });
 
+const OptionalTextFieldSchema = (maxLength: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().max(maxLength).optional(),
+  );
+
 export const CreateLaunchPackRequestSchema = z.object({
   sourceUrl: z.string().url(),
   productName: z.string().min(1).max(140),
+  companyDescription: OptionalTextFieldSchema(2000),
   targetAudience: z.string().min(3).max(240),
   launchGoal: z.string().min(3).max(500),
-  demoInstructions: z.string().max(2000).optional(),
+  demoInstructions: OptionalTextFieldSchema(2000),
 });
 
 export const AuthCredentialsSchema = z.object({
@@ -161,7 +168,7 @@ export const ProductDemoScreenshotSchema = z.object({
   title: z.string(),
   url: z.string(),
   alt: z.string(),
-  action: z.enum(["open", "consent", "click", "search", "first_result", "scroll", "capture"]).optional(),
+  action: z.enum(["open", "consent", "click", "explore", "search", "first_result", "scroll", "capture"]).optional(),
   target: z.string().optional(),
   pointer: z
     .object({
@@ -173,6 +180,7 @@ export const ProductDemoScreenshotSchema = z.object({
 
 export const RemotionRenderPropsSchema = z.object({
   productName: z.string(),
+  companyDescription: z.string().optional(),
   oneLiner: z.string(),
   sourceUrl: z.string().url(),
   browserRecordingUrl: z.string().optional(),
@@ -182,6 +190,7 @@ export const RemotionRenderPropsSchema = z.object({
   voiceoverSegments: z
     .array(
       z.object({
+        durationSeconds: z.number().positive().optional(),
         text: z.string(),
         url: z.string().optional(),
       }),
@@ -213,6 +222,7 @@ export const LaunchPackSchema = z.object({
   status: LaunchPackStatusSchema,
   sourceUrl: z.string().url(),
   productName: z.string(),
+  companyDescription: z.string().optional(),
   targetAudience: z.string(),
   launchGoal: z.string(),
   demoInstructions: z.string().optional(),

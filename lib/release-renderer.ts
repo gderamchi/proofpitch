@@ -101,7 +101,11 @@ async function withCapturedScreenshots(
 
   const demoSteps = capture.steps.length ? capture.steps : renderProps.demoSteps;
   const voiceover = await buildGradiumVoiceoverSegments({
+    companyDescription: renderProps.companyDescription,
+    oneLiner: renderProps.oneLiner,
     outputDir,
+    productName: renderProps.productName,
+    sourceUrl: renderProps.sourceUrl,
     steps: demoSteps,
   });
 
@@ -111,6 +115,7 @@ async function withCapturedScreenshots(
     screenshots: capture.screenshots,
     demoSteps,
     voiceoverSegments: voiceover.segments.map((segment, index) => ({
+      durationSeconds: segment.durationSeconds,
       text: segment.text,
       url: segment.path ? absoluteUrl(baseUrl, renderedVoiceoverSegmentUrl(launchPackId, index + 1)) : undefined,
     })),

@@ -38,7 +38,14 @@ function createDeckSlides(input: ReleaseInput, pitchPack: PitchPack) {
     },
     {
       title: "Product",
-      body: [`Audience: ${input.targetAudience}`, "", pitchPack.executivePitch].join("\n"),
+      body: [
+        input.companyDescription ? `Company: ${input.companyDescription}` : null,
+        `Audience: ${input.targetAudience}`,
+        "",
+        pitchPack.executivePitch,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     },
     {
       title: "Problem",
@@ -109,6 +116,7 @@ function createRenderProps({
 }): RemotionRenderProps {
   return {
     productName: input.productName,
+    ...(input.companyDescription ? { companyDescription: input.companyDescription } : {}),
     oneLiner: pitchPack.oneLiner,
     sourceUrl: input.sourceUrl,
     demoPath: input.demoInstructions,
@@ -150,7 +158,7 @@ function buildDemoVideo({
       status: "ready",
       url: captureVideoUrl,
       uploadStatus: "uploaded",
-      durationSeconds: 60,
+      durationSeconds: 120,
       renderer: "remotion",
       compositionId: REMOTION_COMPOSITION_ID,
       renderProps,
@@ -160,7 +168,7 @@ function buildDemoVideo({
   return DemoVideoSchema.parse({
     status: "pending",
     uploadStatus: "blocked_by_provider_review",
-    durationSeconds: 0,
+    durationSeconds: 120,
     renderer: "remotion",
     compositionId: REMOTION_COMPOSITION_ID,
     renderProps,

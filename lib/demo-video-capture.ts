@@ -63,11 +63,16 @@ const captureViewport = {
   height: 900,
   width: 1600,
 };
+const targetDemoDurationMs = 120_000;
 
 type DemoInstruction =
   | {
       action: "click";
       label: string;
+      raw: string;
+    }
+  | {
+      action: "explore";
       raw: string;
     }
   | {
@@ -94,6 +99,11 @@ type TextClickResult = {
 type DemoInstructionRunResult = {
   pointer?: PointerPosition;
   step: string;
+};
+
+type DemoInstructionRunContext = {
+  pathInstructions?: string;
+  usedExploreTargets: Set<string>;
 };
 
 const cookieAcceptLabels = [
@@ -219,6 +229,16 @@ function parseInstruction(raw: string): DemoInstruction | null {
     );
 
     return label ? { action: "click", label, raw } : null;
+  }
+
+  if (/\b(page|section|secteur|secteurs|sector|sectors|industry|industries|use case|use cases)\b/.test(normalized)) {
+    const label = cleanTarget(
+      raw
+        .replace(/\b(page|section|secteur|secteurs|sector|sectors|industry|industries|use case|use cases)\b/gi, " ")
+        .replace(/\b(show|go|find|see|visit|check|montre|va|voir|trouve|regarde)\b/gi, " "),
+    );
+
+    return label ? { action: "click", label, raw } : { action: "explore", raw };
   }
 
   if (quoted) {
@@ -566,7 +586,7 @@ async function clickFirstResult(page: PlaywrightPage) {
     return { clicked: false };
   });
 
-  if (result.clicked) {
+  if (result.clicked && "label" in result && "clientPoint" in result && "pointer" in result) {
     if (result.clientPoint) {
       await moveCursor(page, result.clientPoint);
       await page.mouse.click(result.clientPoint.x, result.clientPoint.y);
@@ -584,6 +604,235 @@ async function clickFirstResult(page: PlaywrightPage) {
   return { step: "Could not find a first result to open." };
 }
 
+async function readPageInsight(page: PlaywrightPage) {
+  return page
+    .evaluate(() => {
+      const normalizeText = (value: string) => value.replace(/\s+/g, " ").trim();
+      const isVisible = (element: Element) => {
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+
+        return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+      };
+      const textFrom = (selector: string, limit: number, minLength = 2) =>
+        Array.from(document.querySelectorAll<HTMLElement>(selector))
+          .filter(isVisible)
+          .map((element) =>
+            normalizeText(
+              element.innerText ||
+                element.textContent ||
+                element.getAttribute("aria-label") ||
+                element.getAttribute("value") ||
+                "",
+            ),
+          )
+          .filter((text, index, items) => text.length >= minLength && items.indexOf(text) === index)
+          .slice(0, limit);
+      const headings = textFrom("main h1, main h2, [role='main'] h1, [role='main'] h2, h1, h2", 3, 4);
+      const details = textFrom("main p, main li, [role='main'] p, [role='main'] li", 3, 24).map((text) =>
+        text.slice(0, 120),
+      );
+      const options = textFrom(
+        "header a, nav a, main a, button, [role='button'], [role='link']",
+        7,
+        2,
+      ).filter((text) => !/cookie|privacy|terms|sign in|login|menu|close/i.test(text));
+      const parts: string[] = [];
+
+      if (headings.length) {
+        parts.push(`headline: ${headings.join(" / ")}`);
+      }
+
+      if (details.length) {
+        parts.push(`details: ${details.join(" / ")}`);
+      }
+
+      if (options.length) {
+        parts.push(`visible options: ${options.join(", ")}`);
+      }
+
+      return parts.join(" | ").slice(0, 420);
+    })
+    .catch(() => "");
+}
+
+async function clickRelevantPageLink(
+  page: PlaywrightPage,
+  {
+    pathInstructions,
+    usedExploreTargets,
+  }: {
+    pathInstructions?: string;
+    usedExploreTargets: Set<string>;
+  },
+) {
+  const result = await page
+    .evaluate(
+      ({ hintText, usedTargets }) => {
+        const normalizeText = (value: string) =>
+          value
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[’`]/g, "'")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+        const isVisible = (element: Element) => {
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+
+          return style.visibility !== "hidden" && style.display !== "none" && rect.width > 22 && rect.height > 16;
+        };
+        const hint = normalizeText(hintText || "");
+        const used = new Set(usedTargets.map(normalizeText));
+        const priorities = [
+          "secteurs",
+          "sectors",
+          "industries",
+          "industry",
+          "solutions",
+          "use cases",
+          "cas clients",
+          "customers",
+          "clients",
+          "case studies",
+          "pricing",
+          "tarifs",
+          "features",
+          "fonctionnalites",
+          "product",
+          "platform",
+          "integrations",
+          "security",
+          "resources",
+          "contact",
+          "demo",
+        ];
+        const candidates = Array.from(
+          document.querySelectorAll<HTMLAnchorElement | HTMLButtonElement | HTMLElement>(
+            "header a, nav a, main a[href], [role='link'], button, [role='button']",
+          ),
+        );
+        const currentUrl = new URL(window.location.href);
+        let best:
+          | {
+              clientPoint: { x: number; y: number };
+              label: string;
+              pointer: { x: number; y: number };
+              score: number;
+            }
+          | null = null;
+
+        for (const element of candidates) {
+          if (!isVisible(element)) {
+            continue;
+          }
+
+          const rawText =
+            element.innerText ||
+            element.textContent ||
+            element.getAttribute("aria-label") ||
+            element.getAttribute("title") ||
+            "";
+          const label = rawText.replace(/\s+/g, " ").trim().slice(0, 70);
+          const normalized = normalizeText(label);
+          const href = element instanceof HTMLAnchorElement ? element.href : "";
+
+          if (!normalized || used.has(normalized)) {
+            continue;
+          }
+
+          if (/cookie|privacy|terms|signin|sign in|login|log in|account|menu|close|language/i.test(normalized)) {
+            continue;
+          }
+
+          if (href) {
+            try {
+              const url = new URL(href);
+
+              if (url.href === currentUrl.href || (url.pathname === currentUrl.pathname && url.hash)) {
+                continue;
+              }
+
+              if (url.origin !== currentUrl.origin) {
+                continue;
+              }
+            } catch {
+              continue;
+            }
+          }
+
+          let score = 0;
+          const priorityIndex = priorities.findIndex(
+            (priority) => normalized.includes(priority) || normalizeText(href).includes(priority.replaceAll(" ", "-")),
+          );
+
+          if (priorityIndex >= 0) {
+            score += 120 - priorityIndex * 4;
+          }
+
+          for (const word of hint.split(/\s+/).filter((item) => item.length > 3)) {
+            if (normalized.includes(word) || normalizeText(href).includes(word)) {
+              score += 18;
+            }
+          }
+
+          if (element.closest("header, nav")) {
+            score += 16;
+          }
+
+          if (href) {
+            score += 8;
+          }
+
+          if (score < 18) {
+            continue;
+          }
+
+          const rect = element.getBoundingClientRect();
+          const candidate = {
+            clientPoint: {
+              x: Math.min(window.innerWidth - 4, Math.max(4, rect.left + rect.width / 2)),
+              y: Math.min(window.innerHeight - 4, Math.max(4, rect.top + rect.height / 2)),
+            },
+            label,
+            pointer: {
+              x: Math.min(100, Math.max(0, ((rect.left + rect.width / 2) / window.innerWidth) * 100)),
+              y: Math.min(100, Math.max(0, ((rect.top + rect.height / 2) / window.innerHeight) * 100)),
+            },
+            score,
+          };
+
+          if (!best || candidate.score > best.score) {
+            best = candidate;
+          }
+        }
+
+        return best ? { clicked: true, ...best } : { clicked: false };
+      },
+      {
+        hintText: pathInstructions || "",
+        usedTargets: [...usedExploreTargets],
+      },
+    )
+    .catch(() => ({ clicked: false }));
+
+  if (result.clicked && "label" in result && "clientPoint" in result && "pointer" in result) {
+    usedExploreTargets.add(result.label);
+    await moveCursor(page, result.clientPoint);
+    await page.mouse.click(result.clientPoint.x, result.clientPoint.y);
+    await markCursorClick(page, result.clientPoint);
+    await reinstallCursorAfterNavigation(page);
+
+    return {
+      pointer: result.pointer,
+      step: `Explored page: ${result.label}.`,
+    };
+  }
+
+  return { step: "Could not find another useful page to explore." };
+}
+
 async function scrollDemoPage(page: PlaywrightPage) {
   const point = await page.evaluate(() => ({
     x: Math.round(window.innerWidth * 0.91),
@@ -596,12 +845,13 @@ async function scrollDemoPage(page: PlaywrightPage) {
       new Promise<void>((resolve) => {
         const start = window.scrollY;
         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-        const target = Math.min(maxScroll, start + window.innerHeight * 0.82);
+        const forwardTarget = Math.min(maxScroll, start + window.innerHeight * 0.82);
+        const target = forwardTarget > start ? forwardTarget : Math.max(0, start - window.innerHeight * 0.72);
         const distance = target - start;
         const duration = Math.max(900, Math.min(1_450, Math.abs(distance) * 1.25));
         const startTime = performance.now();
 
-        if (distance <= 0) {
+        if (Math.abs(distance) < 4) {
           resolve();
           return;
         }
@@ -626,7 +876,15 @@ async function scrollDemoPage(page: PlaywrightPage) {
   await wait(700);
 }
 
-async function runInstruction(page: PlaywrightPage, instruction: DemoInstruction): Promise<DemoInstructionRunResult> {
+async function runInstruction(
+  page: PlaywrightPage,
+  instruction: DemoInstruction,
+  context: DemoInstructionRunContext,
+): Promise<DemoInstructionRunResult> {
+  if (instruction.action === "explore") {
+    return clickRelevantPageLink(page, context);
+  }
+
   if (instruction.action === "scroll") {
     await scrollDemoPage(page);
 
@@ -659,6 +917,7 @@ async function runInstruction(page: PlaywrightPage, instruction: DemoInstruction
 function enrichInstructions(instructions: DemoInstruction[]) {
   const enriched = [...instructions];
   const hasScroll = enriched.some((instruction) => instruction.action === "scroll");
+  const hasExplore = enriched.some((instruction) => instruction.action === "explore");
   const hasFirstResult = enriched.some((instruction) => instruction.action === "first-result");
   const hasSearch = enriched.some((instruction) => instruction.action === "search");
 
@@ -666,11 +925,21 @@ function enrichInstructions(instructions: DemoInstruction[]) {
     enriched.push({ action: "first-result", raw: "open the first result" });
   }
 
-  while (enriched.length < 5) {
-    enriched.push({
-      action: "scroll",
-      raw: hasScroll ? "continue scrolling through the page" : "scroll down",
-    });
+  if (!hasExplore) {
+    enriched.push({ action: "explore", raw: "open the most relevant product page" });
+  }
+
+  while (enriched.length < 9) {
+    const shouldExplore = enriched.length % 3 === 1;
+
+    enriched.push(
+      shouldExplore
+        ? { action: "explore", raw: "open another relevant product page" }
+        : {
+            action: "scroll",
+            raw: hasScroll ? "continue scrolling through the page" : "scroll down",
+          },
+    );
   }
 
   return enriched.slice(0, 9);
@@ -785,11 +1054,21 @@ export async function captureWebsiteScreenshots({
         sourceUrl,
       }),
     );
+    const initialInsight = await readPageInsight(page);
+
+    if (initialInsight) {
+      steps.push(`Observed page: ${initialInsight}`);
+    }
 
     const instructions = enrichInstructions(parseInstructions(pathInstructions));
+    const usedExploreTargets = new Set<string>();
+    const pauseBetweenStepsMs = Math.max(
+      4_800,
+      Math.min(10_500, Math.floor((targetDemoDurationMs - 16_000) / Math.max(1, instructions.length + 1))),
+    );
 
     for (const [index, instruction] of instructions.entries()) {
-      const run = await runInstruction(page, instruction);
+      const run = await runInstruction(page, instruction, { pathInstructions, usedExploreTargets });
 
       steps.push(run.step);
       screenshots.push(
@@ -811,7 +1090,12 @@ export async function captureWebsiteScreenshots({
           sourceUrl,
         }),
       );
-      await wait(1_050);
+      const insight = await readPageInsight(page);
+
+      if (insight) {
+        steps.push(`Observed page: ${insight}`);
+      }
+      await wait(pauseBetweenStepsMs);
     }
 
     if (screenshots.length < 3) {
@@ -836,6 +1120,11 @@ export async function captureWebsiteScreenshots({
         await page.evaluate((scrollY) => window.scrollTo(0, scrollY), position);
         await wait(450);
         steps.push("Scrolled to capture more of the page.");
+        const insight = await readPageInsight(page);
+
+        if (insight) {
+          steps.push(`Observed page: ${insight}`);
+        }
         screenshots.push(
           await captureFrame({
             action: "scroll",
@@ -855,8 +1144,8 @@ export async function captureWebsiteScreenshots({
 
     const elapsed = Date.now() - startedAt;
 
-    if (elapsed < 24_000) {
-      await wait(24_000 - elapsed);
+    if (elapsed < targetDemoDurationMs) {
+      await wait(targetDemoDurationMs - elapsed);
     }
 
     await context.close();
@@ -865,7 +1154,7 @@ export async function captureWebsiteScreenshots({
     return {
       recordingPath: video ? await video.path().catch(() => undefined) : undefined,
       screenshots: screenshots.slice(0, 8),
-      steps: steps.slice(0, 10),
+      steps: steps.slice(0, 30),
     };
   } finally {
     if (!contextClosed) {

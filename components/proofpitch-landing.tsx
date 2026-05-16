@@ -10,6 +10,8 @@ import type { LaunchPack } from "@/lib/schemas";
 const sampleInput = {
   sourceUrl: "https://example.com",
   productName: "ProofPitch",
+  companyDescription:
+    "ProofPitch helps founder-led teams turn a product URL into a credible sales walkthrough, pitch deck, and claim ledger before customer calls.",
   targetAudience: "Founder-led B2B teams",
   launchGoal: "Prepare a customer-call demo and concise deck.",
   demoInstructions: "Accept cookies if needed, scroll to the proof moment, then show the core workflow.",
@@ -182,6 +184,7 @@ function OutputPreview({
 export function ProofPitchLanding() {
   const [sourceUrl, setSourceUrl] = useState(sampleInput.sourceUrl);
   const [productName, setProductName] = useState(sampleInput.productName);
+  const [companyDescription, setCompanyDescription] = useState(sampleInput.companyDescription);
   const [targetAudience, setTargetAudience] = useState(sampleInput.targetAudience);
   const [launchGoal, setLaunchGoal] = useState(sampleInput.launchGoal);
   const [demoInstructions, setDemoInstructions] = useState(sampleInput.demoInstructions);
@@ -207,6 +210,7 @@ export function ProofPitchLanding() {
         body: JSON.stringify({
           sourceUrl,
           productName,
+          companyDescription,
           targetAudience,
           launchGoal,
           demoInstructions,
@@ -277,7 +281,7 @@ export function ProofPitchLanding() {
         demoVideo: {
           ...result.demoVideo,
           status: "ready",
-          durationSeconds: 24,
+          durationSeconds: 120,
           uploadStatus: "not_required",
           url: videoUrl,
           error: undefined,
@@ -312,6 +316,7 @@ export function ProofPitchLanding() {
               onClick={() => {
                 setSourceUrl(sampleInput.sourceUrl);
                 setProductName(sampleInput.productName);
+                setCompanyDescription(sampleInput.companyDescription);
                 setTargetAudience(sampleInput.targetAudience);
                 setLaunchGoal(sampleInput.launchGoal);
                 setDemoInstructions(sampleInput.demoInstructions);
@@ -357,6 +362,13 @@ export function ProofPitchLanding() {
                 required
               />
             </div>
+            <textarea
+              value={companyDescription}
+              onChange={(event) => setCompanyDescription(event.target.value)}
+              rows={3}
+              className="resize-none border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm leading-6 outline-none focus:border-teal-800"
+              placeholder="Company context: what the company does, who it helps, why buyers care"
+            />
             <textarea
               value={launchGoal}
               onChange={(event) => setLaunchGoal(event.target.value)}

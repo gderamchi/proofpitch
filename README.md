@@ -56,7 +56,7 @@ GRADIUM_API_KEY=
 GRADIUM_VOICE_ID=YTpq7expH9539ERJ
 ```
 
-`GRADIUM_VOICE_ID` defaults to an English voice when omitted. The render pipeline reads Gradium keys from the process environment or local env files, generates short voiceover segments per demo step, serves them from `/api/launch-packs/:id/voiceover/:segment`, and syncs them in Remotion.
+`GRADIUM_VOICE_ID` defaults to an English voice when omitted. The render pipeline reads Gradium keys from the process environment or local env files, generates short sales-oriented voiceover segments per demo step, serves them from `/api/launch-packs/:id/voiceover/:segment`, and syncs them in Remotion.
 
 The homepage also exposes a "Render demo video" action after a launch pack is generated. It captures the entered URL as a real browser recording, adds subtle synced subtitles and optional Gradium voiceover, then serves the MP4 from `/api/launch-packs/:id/video`.
 
@@ -64,8 +64,10 @@ The render action uses a lightweight demo-path agent. It can:
 
 - handle common consent banners such as "Accept all", "Tout accepter", or "Reject all";
 - follow simple user path instructions such as "search pricing", "click Contact", "open the first result", or "scroll down";
+- observe visible headings, page copy, and navigation labels so the Gradium narration can stay natural between actions;
+- improvise into useful internal pages such as sectors, industries, use cases, pricing, customers, solutions, or contact when the requested path runs out;
 - record the browser session in 16:9 so the Remotion video shows an actual walkthrough instead of a static first page.
-The Remotion walkthrough is rendered as a longer 24-second video with a subtle subtitle track and can be opened full-size from the generated output card.
+The Remotion walkthrough is rendered as a two-minute video with a subtle subtitle track and can be opened full-size from the generated output card.
 
 ## Main API
 
@@ -77,6 +79,7 @@ Request:
 {
   "sourceUrl": "https://example.com",
   "productName": "ProofPitch",
+  "companyDescription": "ProofPitch helps founder-led teams turn a product URL into a credible sales walkthrough, pitch deck, and claim ledger.",
   "targetAudience": "Founder-led B2B teams",
   "launchGoal": "Prepare a customer-call demo and concise deck.",
   "demoInstructions": "Accept cookies if needed, search pricing, then scroll to the CTA."

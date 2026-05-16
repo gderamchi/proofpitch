@@ -8,7 +8,7 @@ function RemotionRoot() {
     <Composition
       id="ProofPitchProductDemo"
       component={ReleaseDemo}
-      durationInFrames={720}
+      durationInFrames={3600}
       fps={30}
       width={1920}
       height={1080}

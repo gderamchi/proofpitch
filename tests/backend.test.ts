@@ -413,11 +413,13 @@ describe("backend contracts", () => {
     expect(CreateLaunchPackRequestSchema.parse({
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
+      companyDescription: "ProofPitch helps founders turn product context into credible sales material.",
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
     })).toEqual({
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
+      companyDescription: "ProofPitch helps founders turn product context into credible sales material.",
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
     });
@@ -662,6 +664,7 @@ describe("backend contracts", () => {
       input: {
         sourceUrl: "https://example.com",
         productName: "ProofPitch",
+        companyDescription: "ProofPitch turns product context into credible buyer-facing demos.",
         targetAudience: "Founder-led B2B teams",
         launchGoal: "Release with a guided product demo video",
         demoInstructions: "Accept cookies, search pricing, then scroll to the CTA.",
@@ -673,6 +676,7 @@ describe("backend contracts", () => {
     expect(assets.demoVideo.renderProps?.demoPath).toBe(
       "Accept cookies, search pricing, then scroll to the CTA.",
     );
+    expect(assets.demoVideo.renderProps?.companyDescription).toContain("credible buyer-facing demos");
   });
 });
 

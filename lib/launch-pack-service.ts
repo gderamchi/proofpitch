@@ -46,13 +46,16 @@ function shortGoal(input: CreateLaunchPackRequest) {
 function buildRawPitchInput(input: CreateLaunchPackRequest) {
   return [
     `${input.productName} needs a focused pitch deck and a real product demo video.`,
+    input.companyDescription ? `Company context: ${input.companyDescription}.` : null,
     `Audience: ${input.targetAudience}.`,
     `Release goal: ${shortGoal(input)}.`,
     input.demoInstructions
       ? `Demo path: ${input.demoInstructions}.`
       : "Demo path: infer the strongest public walkthrough from the product URL.",
     "Create conservative copy with visible proof and no unsupported metrics.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildLaunchPack({
@@ -83,6 +86,7 @@ function buildLaunchPack({
     status: "completed",
     sourceUrl: input.sourceUrl,
     productName: input.productName,
+    ...(input.companyDescription ? { companyDescription: input.companyDescription } : {}),
     targetAudience: input.targetAudience,
     launchGoal: input.launchGoal,
     demoInstructions: input.demoInstructions,
