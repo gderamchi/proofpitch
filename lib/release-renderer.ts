@@ -138,24 +138,34 @@ async function renderDemoVideoWithRemotion({
     publicDir: path.join(process.cwd(), "public"),
     rspack: false,
   });
-  const composition = await selectComposition({
-    id: compositionId,
-    inputProps,
-    serveUrl,
-    timeoutInMilliseconds: 120000,
-  });
+  const previousCwd = process.cwd();
 
-  await renderMedia({
-    codec: "h264",
-    composition,
-    concurrency: 1,
-    inputProps,
-    logLevel: "warn",
-    outputLocation: videoPath,
-    overwrite: true,
-    serveUrl,
-    timeoutInMilliseconds: 120000,
-  });
+  try {
+    if (process.env.VERCEL) {
+      process.chdir(os.tmpdir());
+    }
+
+    const composition = await selectComposition({
+      id: compositionId,
+      inputProps,
+      serveUrl,
+      timeoutInMilliseconds: 120000,
+    });
+
+    await renderMedia({
+      codec: "h264",
+      composition,
+      concurrency: 1,
+      inputProps,
+      logLevel: "warn",
+      outputLocation: videoPath,
+      overwrite: true,
+      serveUrl,
+      timeoutInMilliseconds: 120000,
+    });
+  } finally {
+    process.chdir(previousCwd);
+  }
 }
 
 async function runCommand(command: string, args: string[]) {
