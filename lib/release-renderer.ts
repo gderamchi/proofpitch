@@ -111,6 +111,51 @@ function fallbackScreenshots(renderProps: RemotionRenderProps, reason: string): 
   }));
 }
 
+async function renderDemoVideoWithRemotion({
+  compositionId,
+  outputDir,
+  renderProps,
+  videoPath,
+}: {
+  compositionId: string;
+  outputDir: string;
+  renderProps: RemotionRenderProps;
+  videoPath: string;
+}) {
+  const [{ bundle }, { renderMedia, selectComposition }] = await Promise.all([
+    import("@remotion/bundler"),
+    import("@remotion/renderer"),
+  ]);
+  const inputProps = renderProps as unknown as Record<string, unknown>;
+  const binariesDirectory = path.join(os.tmpdir(), ".remotion-binaries");
+  const serveUrl = await bundle({
+    entryPoint: path.join(process.cwd(), "remotion", "index.tsx"),
+    outDir: path.join(outputDir, "remotion-bundle"),
+    enableCaching: false,
+    publicDir: path.join(process.cwd(), "public"),
+  });
+  const composition = await selectComposition({
+    binariesDirectory,
+    id: compositionId,
+    inputProps,
+    serveUrl,
+    timeoutInMilliseconds: 120000,
+  });
+
+  await renderMedia({
+    binariesDirectory,
+    codec: "h264",
+    composition,
+    concurrency: 1,
+    inputProps,
+    logLevel: "warn",
+    outputLocation: videoPath,
+    overwrite: true,
+    serveUrl,
+    timeoutInMilliseconds: 120000,
+  });
+}
+
 async function runCommand(command: string, args: string[]) {
   const writableNpmEnv = process.env.VERCEL
     ? {
@@ -227,11 +272,7 @@ export async function renderReleaseArtifacts({
   const slidevPdfArgs = ["--yes", "@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
   const slidevPngArgs = ["--yes", "@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
-    "--yes",
-    "--package=@remotion/cli",
-    "--",
-    "remotion",
-    "render",
+    "renderMedia",
     "remotion/index.tsx",
     compositionId,
     videoPath,
@@ -243,7 +284,7 @@ export async function renderReleaseArtifacts({
   ];
   const commands = [
     ...(shouldRenderDeck ? [commandLine("npx", slidevPdfArgs), commandLine("npx", slidevPngArgs)] : []),
-    ...(shouldRenderVideo ? [commandLine("npx", remotionArgs)] : []),
+    ...(shouldRenderVideo ? [commandLine("@remotion/renderer", remotionArgs)] : []),
   ];
   const artifacts: RenderArtifact[] = [
     ...(shouldRenderDeck
@@ -301,6 +342,12 @@ export async function renderReleaseArtifacts({
       );
 
       await writeFile(propsPath, JSON.stringify(renderProps, null, 2), "utf8");
+      await renderDemoVideoWithRemotion({
+        compositionId,
+        outputDir,
+        renderProps,
+        videoPath,
+      });
     }
 
     if (shouldRenderDeck) {
@@ -318,7 +365,6 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderVideo) {
-      await runCommand("npx", remotionArgs);
       const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
       artifacts[videoArtifactIndex] = {
         ...artifacts[videoArtifactIndex],

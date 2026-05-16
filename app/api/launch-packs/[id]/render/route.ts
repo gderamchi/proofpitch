@@ -9,6 +9,7 @@ import { RenderLaunchDeckRequestSchema, RenderLaunchVideoRequestSchema } from "@
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type RouteContext = {
   params: Promise<{
