@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 type CaptureResult = {
   screenshots: LaunchScreenshot[];
   notes: string[];
+  videoUrl?: string;
 };
 
 function baseUrl(url: string) {
@@ -79,7 +80,9 @@ export async function captureLaunchDemo(input: CreateLaunchPackRequest): Promise
 
     await page.goto(input.sourceUrl, { waitUntil: "networkidle", timeout: 45_000 });
     await page.screenshot({ path: shotPath, fullPage: true });
+    const video = page.video();
     await context.close();
+    const videoUrl = video ? await video.path() : undefined;
     await browser.close();
 
     return {
@@ -92,6 +95,7 @@ export async function captureLaunchDemo(input: CreateLaunchPackRequest): Promise
         },
       ],
       notes: ["Captured source screenshots with Playwright in the local release worker path."],
+      videoUrl,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown capture failure.";

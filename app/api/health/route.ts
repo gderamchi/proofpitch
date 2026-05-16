@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { getBillingHealth } from "@/lib/billing";
-import { getSocialOAuthHealth } from "@/lib/social-oauth";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -54,8 +53,6 @@ export async function GET() {
   const providers = {
     openai: providerHealth("OPENAI_API_KEY"),
     tavily: providerHealth("TAVILY_API_KEY"),
-    fal: providerHealth("FAL_KEY"),
-    gradium: providerHealth("GRADIUM_API_KEY"),
     pioneer: providerHealth("PIONEER_API_KEY"),
   };
   const ok =
@@ -65,13 +62,10 @@ export async function GET() {
     ok,
     service: "proofpitch",
     providers,
-    socialOAuth: getSocialOAuthHealth(),
     supabase,
     billing: getBillingHealth(),
     hasOpenAI: providers.openai.configured,
     hasTavily: providers.tavily.configured,
-    hasFal: providers.fal.configured,
-    hasGradium: providers.gradium.configured,
     hasPioneer: providers.pioneer.configured,
     hasSupabase: supabase.configured,
     billingMode: process.env.BILLING_MODE || "manual",

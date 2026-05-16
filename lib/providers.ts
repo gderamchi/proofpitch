@@ -1,20 +1,11 @@
-import type { ProviderReport } from "./schemas";
+import type { ProviderReport, ProviderReports } from "./schemas";
 
-export type ProviderName = "openai" | "tavily" | "fal" | "gradium" | "pioneer";
-
-export type ProviderReports = Record<ProviderName, ProviderReport>;
+export type ProviderName = "openai" | "tavily" | "pioneer";
 
 export function initialProviderReports(): ProviderReports {
   return {
     openai: { state: "pending", detail: "Structured pitch generation not run yet." },
     tavily: { state: "pending", detail: "Research not run yet." },
-    fal: { state: "pending", detail: "Media generation not run yet." },
-    gradium: process.env.GRADIUM_API_KEY
-      ? {
-          state: "pending",
-          detail: "Gradium is configured for /api/gradium-transcribe; no audio was uploaded in this text generation run.",
-        }
-      : { state: "missing", detail: "Voice skipped because GRADIUM_API_KEY is not configured." },
     pioneer: { state: "pending", detail: "Claim extraction not run yet." },
   };
 }
@@ -30,8 +21,6 @@ function redactKnownSecrets(detail: string) {
   const secretValues = [
     process.env.OPENAI_API_KEY,
     process.env.TAVILY_API_KEY,
-    process.env.FAL_KEY,
-    process.env.GRADIUM_API_KEY,
     process.env.PIONEER_API_KEY,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
   ].filter((value): value is string => Boolean(value && value.length >= 8));

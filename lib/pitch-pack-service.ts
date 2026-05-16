@@ -383,7 +383,6 @@ async function saveSupabasePitchPack({
       input_text: input.rawInput,
       project_url: input.projectUrl ?? null,
       output_json: response.pitchPack,
-      generated_media_url: response.pitchPack.generatedMediaUrl ?? null,
       created_by: ctx.user.id,
     })
     .select("id,organization_id,project_id,status,plan,quota,created_at")
@@ -532,7 +531,7 @@ export async function listPitchPacks() {
   const quota = await getSupabaseQuota(ctx);
   const { data, error } = await ctx.admin
     .from("pitch_packs")
-    .select("id,organization_id,project_id,status,plan,output_json,generated_media_url,created_at")
+    .select("id,organization_id,project_id,status,plan,output_json,created_at")
     .eq("organization_id", ctx.organization.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -558,7 +557,6 @@ export async function listPitchPacks() {
           projectName: pitchPack.projectName,
           oneLiner: pitchPack.oneLiner,
           claimCount: pitchPack.claims.length,
-          generatedMediaUrl: (row.generated_media_url as string | null) ?? null,
         };
       }) ?? [],
   };

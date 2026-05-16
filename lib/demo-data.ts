@@ -13,18 +13,18 @@ export const demoPitchPack: PitchPack = {
   executivePitch:
     "ProofPitch helps builders turn raw project context into a clear two-minute pitch without hiding unsupported claims.",
   demoScript2Min:
-    "Open with the problem: most pitch material is either too vague or too unverified. Paste a rough founder note, add a project URL, then generate the pack. Show the claim ledger first, then the two-minute script, README snippet, provider usage, and generated hero visual. Close by showing that unsupported claims were removed before sharing the pitch.",
+    "Open with the problem: most pitch material is either too vague or too unverified. Paste a rough founder note, add a project URL, then generate the pack. Show the claim ledger first, then the two-minute script, README snippet, product demo state, and separate deck. Close by showing that unsupported claims were removed before sharing the pitch.",
   liveDemoSteps: [
     "Paste or record a rough founder note.",
     "Add a project or GitHub URL.",
     "Generate the pitch pack.",
     "Review the claim ledger before reading the final pitch.",
-    "Copy the README snippet and media prompt for the website, investor note, or sales collateral.",
+    "Use the README snippet, product demo plan, and deck for investor or sales collateral.",
   ],
   claims: [
     {
       id: "claim-1",
-      text: "ProofPitch outputs a two-minute script, README snippet, and media prompt.",
+      text: "ProofPitch outputs a two-minute script, README snippet, product demo plan, and deck.",
       status: "supported",
       sourceType: "inference",
       sourceTitle: "Local demo flow",
@@ -32,7 +32,7 @@ export const demoPitchPack: PitchPack = {
     },
     {
       id: "claim-2",
-      text: "The stack can use OpenAI, Tavily, fal, Gradium, and Pioneer.",
+      text: "The stack can use OpenAI, Tavily, and Pioneer.",
       status: "user_provided",
       sourceType: "user_input",
       sourceTitle: "Provider plan",
@@ -46,15 +46,11 @@ export const demoPitchPack: PitchPack = {
       explanation: "This sounds like a metric claim and should not be said without evidence.",
     },
   ],
-  generatedMediaPrompt:
-    "A cinematic product visual for ProofPitch: a rough voice note transforming into a clean pitch deck, claim ledger, and glowing proof trail, dark premium interface, teal and amber highlights, no text.",
   readmeSnippet:
-    "ProofPitch converts rough founder notes and optional project URLs into a verified pitch pack: executive pitch, two-minute script, claim ledger, media prompt, README snippet, and provider usage notes.",
+    "ProofPitch converts rough founder notes and optional project URLs into a verified pitch pack: executive pitch, two-minute script, claim ledger, product demo plan, README snippet, and provider usage notes.",
   providerUsage: {
     openai: "Structured pitch-pack generation and synthesis.",
     tavily: "Research and source extraction when TAVILY_API_KEY is configured.",
-    fal: "Generated hero media when FAL_KEY is configured.",
-    gradium: "Voice transcription/narration skeleton ready for production credentials.",
     pioneer: "Claim/entity extraction skeleton using GLiNER2/Pioneer when configured.",
   },
   risks: [
@@ -63,8 +59,8 @@ export const demoPitchPack: PitchPack = {
   ],
   nextSteps: [
     "Add real OpenAI credentials for structured generation.",
-    "Add Tavily and fal keys for live research and media.",
-    "Wire Gradium/Pioneer once production credentials and endpoint contracts are validated.",
+    "Add Tavily credentials for live research.",
+    "Keep Pioneer parser coverage aligned with production endpoint responses.",
   ],
 };
 
@@ -91,6 +87,6 @@ export function buildFallbackPitchPack(rawInput: string, projectUrl?: string): P
       },
       ...demoPitchPack.claims.slice(0, 2),
     ],
-    readmeSnippet: `## ${projectName}\n\n${trimmed}\n\nGenerated local pack: add API credentials to produce live research, media, and stricter claim verification.`,
+    readmeSnippet: `## ${projectName}\n\n${trimmed}\n\nGenerated local pack: add API credentials to produce live research and stricter claim verification.`,
   };
 }

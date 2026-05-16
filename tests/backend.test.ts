@@ -9,7 +9,6 @@ import {
   PitchPackSchema,
   PitchDeckSchema,
   RemotionRenderPropsSchema,
-  VoiceoverSchema,
   type PitchPack,
 } from "../lib/schemas";
 
@@ -55,14 +54,11 @@ function buildPitchPack(rawInput = "ProofPitch turns notes into verified pitch p
         explanation: "No source supports this metric.",
       },
     ],
-    generatedMediaPrompt: "Dark product interface with a visible proof trail, no text.",
     readmeSnippet: "ProofPitch turns rough notes into verified pitch packs.",
     providerUsage: {
       openai: "Structured generation.",
       tavily: "Research sources.",
       pioneer: "Claim extraction.",
-      fal: "Optional media.",
-      gradium: "Optional audio transcription.",
     },
     risks: ["Verification is evidence-aided, not a legal guarantee."],
     nextSteps: ["Connect Supabase and export Markdown."],
@@ -312,14 +308,11 @@ vi.mock("../lib/pitch-pack", () => ({
           explanation: "No source supports this metric.",
         },
       ],
-      generatedMediaPrompt: "Dark product interface with a visible proof trail, no text.",
       readmeSnippet: "ProofPitch turns rough notes into verified pitch packs.",
       providerUsage: {
         openai: "Structured generation.",
         tavily: "Research sources.",
         pioneer: "Claim extraction.",
-        fal: "Optional media.",
-        gradium: "Optional audio transcription.",
       },
       risks: ["Verification is evidence-aided, not a legal guarantee."],
       nextSteps: ["Connect Supabase and export Markdown."],
@@ -331,8 +324,6 @@ vi.mock("../lib/pitch-pack", () => ({
       providers: {
         openai: { state: "fallback", detail: "OpenAI unavailable. Using local fallback." },
         tavily: { state: "used", detail: "Tavily returned 1 source." },
-        fal: { state: "failed", detail: "fal failed: exhausted balance." },
-        gradium: { state: "pending", detail: "No audio uploaded." },
         pioneer: { state: "used", detail: "Pioneer returned 1 extraction item." },
       },
       providerRunLogs: [
@@ -341,13 +332,6 @@ vi.mock("../lib/pitch-pack", () => ({
           status: "fallback",
           detail: "Deterministic fallback used.",
           latencyMs: 0,
-          requestId: "req-test",
-        },
-        {
-          provider: "fal",
-          status: "failed",
-          detail: "fal failed: exhausted balance.",
-          latencyMs: 10,
           requestId: "req-test",
         },
       ],
@@ -407,6 +391,7 @@ beforeEach(() => {
   stripeState.checkoutSessions = [];
   stripeState.webhookConstructions = [];
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   vi.stubEnv("PROOFPITCH_LOCAL_DEMO_PACK_LIMIT", "1");
   process.env.PROOFPITCH_LOCAL_DEMO_PACK_LIMIT = "1";
   (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
@@ -415,34 +400,27 @@ beforeEach(() => {
 });
 
 describe("backend contracts", () => {
-  it("validates launch-pack inputs and generated output contracts", async () => {
+  it("validates MVP launch-pack inputs and generated output contracts", async () => {
     expect(() =>
       CreateLaunchPackRequestSchema.parse({
         sourceUrl: "not-a-url",
         productName: "ProofPitch",
         targetAudience: "Founder-led B2B teams",
-        launchGoal: "Launch on Product Hunt",
+        launchGoal: "Launch with a focused demo",
       }),
     ).toThrow();
 
-    expect(
-      CreateLaunchPackRequestSchema.parse({
-        sourceUrl: "https://example.com",
-        productName: "ProofPitch",
-        targetAudience: "Founder-led B2B teams",
-        launchGoal: "Release with a pitch deck and demo video",
-      }).releaseChannels,
-    ).toEqual(["youtube", "linkedin", "x"]);
-
-    expect(
-      CreateLaunchPackRequestSchema.parse({
-        sourceUrl: "https://example.com",
-        productName: "ProofPitch",
-        targetAudience: "Founder-led B2B teams",
-        launchGoal: "Release with a pitch deck, demo video, and Product Hunt support",
-        releaseChannels: ["youtube", "linkedin", "x", "product_hunt"],
-      }).releaseChannels,
-    ).toContain("product_hunt");
+    expect(CreateLaunchPackRequestSchema.parse({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+    })).toEqual({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+    });
 
     const launchPack = LaunchPackSchema.parse({
       id: "launch-1",
@@ -450,9 +428,8 @@ describe("backend contracts", () => {
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
       targetAudience: "Founder-led B2B teams",
-      launchGoal: "Release with a pitch deck and demo video",
-      releaseChannels: ["youtube", "linkedin", "x"],
-      demoScript: "Open the product, show the proof ledger, export the release pack.",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoScript: "Open the product, show the proof ledger, then use the separate deck.",
       captions: ["Open the product", "Review evidence", "Publish after review"],
       screenshots: [
         {
@@ -463,31 +440,24 @@ describe("backend contracts", () => {
         },
       ],
       demoVideo: {
-        status: "ready",
-        url: "https://assets.test/demo.webm",
-        durationSeconds: 75,
-        uploadStatus: "manual_upload_required",
+        status: "pending",
+        durationSeconds: 0,
+        uploadStatus: "blocked_by_provider_review",
         renderer: "remotion",
-        compositionId: "ProofPitchReleaseDemo",
+        compositionId: "ProofPitchProductDemo",
+        error: "Product demo video requires Playwright capture.",
         renderProps: {
           productName: "ProofPitch",
           oneLiner: "Turn a product URL into a release-ready proof pack.",
           sourceUrl: "https://example.com",
-          deckTitle: "ProofPitch release deck",
-          slideCount: 6,
-          voiceoverUrl: "https://assets.test/voiceover.wav",
-          scenes: [
+          screenshots: [
             {
-              title: "Problem",
-              body: "Teams need release assets before they can sell the product.",
-              kind: "problem",
-            },
-            {
-              title: "Solution",
-              body: "ProofPitch creates the deck, video, voiceover, and posts.",
-              kind: "solution",
+              title: "Homepage",
+              url: "https://assets.test/home.png",
+              alt: "ProofPitch homepage screenshot",
             },
           ],
+          demoSteps: ["Open the product", "Review evidence", "Use the deck"],
           captions: ["Open the product", "Review evidence", "Publish after review"],
         },
       },
@@ -504,58 +474,37 @@ describe("backend contracts", () => {
           },
         ],
       },
-      voiceover: {
-        status: "ready",
-        provider: "openai",
-        script: "ProofPitch creates the deck, demo video, voiceover, and posts.",
-        audioUrl: "https://assets.test/voiceover.wav",
-        format: "wav",
-        voice: "verse",
-      },
-      productHunt: {
-        productName: "ProofPitch",
-        tagline: "Turn a product URL into a launch-ready proof pack.",
-        topics: ["productivity", "marketing", "artificial-intelligence"],
-        pricing: "Paid",
-        thumbnailUrl: "https://assets.test/home.png",
-        galleryUrls: ["https://assets.test/home.png"],
-        youtubeUrl: "https://youtube.test/watch?v=proofpitch",
-        interactiveDemoUrl: "https://example.com",
-        description: "ProofPitch creates reviewable launch assets.",
-        makerComment: "We built ProofPitch to make launch prep concrete.",
-        faq: [{ question: "Does it auto-submit?", answer: "No. You review before publishing." }],
-        checklist: ["Review Product Hunt fields", "Upload or confirm the YouTube video"],
-      },
-      socialPosts: {
-        linkedin: {
-          text: "ProofPitch is launching.",
-          visibility: "PUBLIC",
-          media: [{ type: "video", url: "https://assets.test/demo.webm" }],
-        },
-        x: [
-          {
-            text: "ProofPitch turns a URL into a release pack.",
-            media: [{ type: "video", url: "https://assets.test/demo.webm", madeWithAi: true }],
-          },
-        ],
-      },
-      youtube: {
-        title: "ProofPitch demo",
-        description: "A short walkthrough.",
-        privacyStatus: "unlisted",
-        tags: ["ProofPitch", "Product Hunt"],
-      },
       launchChecklist: ["Review every channel", "Publish after review"],
       pitchPack: buildPitchPack(),
+      providers: {
+        openai: { state: "fallback", detail: "OpenAI unavailable. Using local fallback." },
+        tavily: { state: "used", detail: "Tavily returned 1 source." },
+        pioneer: { state: "used", detail: "Pioneer returned 1 extraction item." },
+      },
       createdAt: "2026-05-16T10:00:00.000Z",
       updatedAt: "2026-05-16T10:00:00.000Z",
     });
 
     expect(PitchDeckSchema.parse(launchPack.pitchDeck).format).toBe("slidev");
-    expect(VoiceoverSchema.parse(launchPack.voiceover).provider).toBe("openai");
-    expect(RemotionRenderPropsSchema.parse(launchPack.demoVideo.renderProps).scenes).toHaveLength(2);
-    expect(launchPack.productHunt.checklist.join(" ")).toContain("YouTube");
-    expect(launchPack.socialPosts.x[0].media?.[0]).toMatchObject({ madeWithAi: true });
+    expect(RemotionRenderPropsSchema.parse(launchPack.demoVideo.renderProps).demoSteps).toHaveLength(3);
+    expect(Object.keys(launchPack).sort()).toEqual([
+      "captions",
+      "createdAt",
+      "demoScript",
+      "demoVideo",
+      "id",
+      "launchChecklist",
+      "launchGoal",
+      "pitchDeck",
+      "pitchPack",
+      "productName",
+      "providers",
+      "screenshots",
+      "sourceUrl",
+      "status",
+      "targetAudience",
+      "updatedAt",
+    ]);
   });
 
   it("validates pitch-pack inputs and generated output", () => {
@@ -582,6 +531,43 @@ describe("backend contracts", () => {
     expect(report.detail).toContain("[redacted]");
   });
 
+  it("parses Pioneer nested entity output and claim risk", async () => {
+    vi.stubEnv("PIONEER_API_KEY", "pioneer-test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                entities: {
+                  product: ["product demo videos", "pitch decks"],
+                  claim: ["verifies claims"],
+                },
+                claim_risk: "weak",
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const { extractWithPioneer } = await import("../lib/pioneer");
+    const result = await extractWithPioneer("ProofPitch creates product demo videos and pitch decks.");
+
+    expect(result.entities).toEqual([
+      { type: "product", value: "product demo videos" },
+      { type: "product", value: "pitch decks" },
+      { type: "claim", value: "verifies claims" },
+    ]);
+    expect(result.claimRisk).toBe("weak");
+    expect(result.report).toMatchObject({
+      state: "used",
+      detail: "Pioneer returned 3 extraction item(s) with weak claim risk.",
+    });
+  });
+
   it("renders Markdown exports with reusable sections", () => {
     const markdown = renderPitchPackMarkdown(buildPitchPack());
 
@@ -591,15 +577,14 @@ describe("backend contracts", () => {
     expect(markdown).toContain("## Risks");
   });
 
-  it("builds Slidev, voiceover, and Remotion release assets from a pitch pack", async () => {
+  it("builds separate Slidev deck and blocked product-demo video metadata from a pitch pack", async () => {
     const { buildReleaseAssets } = await import("../lib/release-assets");
     const assets = await buildReleaseAssets({
       input: {
         sourceUrl: "https://example.com",
         productName: "ProofPitch",
         targetAudience: "Founder-led B2B teams",
-        launchGoal: "Release with a pitch deck, demo video, voiceover, and social posts",
-        releaseChannels: ["youtube", "linkedin", "x"],
+        launchGoal: "Release with a pitch deck and product demo video",
       },
       pitchPack: buildPitchPack(),
       screenshots: [
@@ -620,27 +605,16 @@ describe("backend contracts", () => {
     expect(assets.pitchDeck.slideCount).toBeGreaterThanOrEqual(6);
     expect(assets.pitchDeck.markdown).toContain("# ProofPitch");
     expect(assets.pitchDeck.markdown).toContain("## Product");
-    expect(assets.voiceover).toMatchObject({
-      status: "script_only",
-      provider: "none",
-      format: "wav",
-    });
-    expect(assets.voiceover.script).toContain("ProofPitch");
+    expect(Object.keys(assets).sort()).toEqual(["demoVideo", "pitchDeck", "releaseChecklist"]);
     expect(assets.demoVideo).toMatchObject({
       renderer: "remotion",
-      compositionId: "ProofPitchReleaseDemo",
+      compositionId: "ProofPitchProductDemo",
       status: "pending",
-      uploadStatus: "manual_upload_required",
+      uploadStatus: "blocked_by_provider_review",
     });
     expect(assets.demoVideo.url).toBeUndefined();
-    expect(assets.demoVideo.renderProps.scenes.map((scene) => scene.kind)).toEqual([
-      "hook",
-      "problem",
-      "solution",
-      "proof",
-      "demo",
-      "cta",
-    ]);
+    expect(assets.demoVideo.error).toContain("Playwright capture");
+    expect(assets.demoVideo.renderProps?.demoSteps.join(" ")).toContain("Paste context");
   });
 
   it("keeps the local renderer disabled unless explicitly enabled and supports dry-run commands", async () => {
@@ -677,21 +651,19 @@ describe("backend contracts", () => {
     });
     expect(dryRun.enabled).toBe(true);
     expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.commands.join("\n")).not.toContain("remotion render");
   });
 });
 
 describe("local backend flow", () => {
-  it("creates a local release pack with deck, voiceover, Remotion metadata, and optional Product Hunt handoff", async () => {
+  it("creates a local MVP release pack with deck and product-demo metadata only", async () => {
     const service = await import("../lib/launch-pack-service");
-    const bookmarklet = await import("../lib/product-hunt-bookmarklet");
     const input = {
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
       targetAudience: "Founder-led B2B teams",
-      launchGoal: "Release with a pitch deck, demo video, and social proof",
-      demoInstructions: "Show the claim ledger, generated video, and release pack.",
-      releaseChannels: ["youtube", "linkedin", "x", "product_hunt"] as const,
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
     };
 
     const created = await service.createLaunchPack(input);
@@ -699,70 +671,32 @@ describe("local backend flow", () => {
 
     expect(created.status).toBe("completed");
     expect(created.pitchDeck.markdown).toContain("# ProofPitch");
-    expect(created.voiceover.script).toContain("ProofPitch");
     expect(created.demoVideo).toMatchObject({
       renderer: "remotion",
-      compositionId: "ProofPitchReleaseDemo",
+      compositionId: "ProofPitchProductDemo",
+      uploadStatus: "blocked_by_provider_review",
     });
-    expect(created.productHunt.interactiveDemoUrl).toBe("https://example.com");
-    expect(created.releaseChannels).toEqual(["youtube", "linkedin", "x", "product_hunt"]);
-    expect(created.channelDrafts.map((draft) => draft.channel).sort()).toEqual([
-      "linkedin",
-      "product_hunt",
-      "x",
-      "youtube",
+    expect(Object.keys(created.providers)).toEqual(["openai", "tavily", "pioneer"]);
+    expect(Object.keys(created).sort()).toEqual([
+      "captions",
+      "createdAt",
+      "demoInstructions",
+      "demoScript",
+      "demoVideo",
+      "id",
+      "launchChecklist",
+      "launchGoal",
+      "pitchDeck",
+      "pitchPack",
+      "productName",
+      "providers",
+      "screenshots",
+      "sourceUrl",
+      "status",
+      "targetAudience",
+      "updatedAt",
     ]);
-    expect(detail?.launchPack.productHunt.checklist.join(" ")).toContain("YouTube");
-
-    const productHuntDraft = created.channelDrafts.find((draft) => draft.channel === "product_hunt");
-    expect(productHuntDraft).toMatchObject({
-      publishStatus: "manual_handoff",
-      reviewStatus: "pending_review",
-    });
-    expect(productHuntDraft?.safeAutofillUrl).toContain("/api/launch-packs/");
-
-    const bookmarkletSource = bookmarklet.buildProductHuntBookmarklet({
-      launchPackId: created.id,
-      token: productHuntDraft?.autofillToken ?? "",
-      origin: "https://proofpitch.test",
-    });
-    expect(bookmarkletSource).toContain("javascript:");
-    expect(bookmarkletSource).toContain("neverSubmit");
-    expect(bookmarkletSource).not.toMatch(/\.submit\s*\(|click\s*\(/);
-
-    await expect(
-      service.publishLaunchPack(created.id, "linkedin", { reviewConfirmed: false }),
-    ).rejects.toMatchObject({ code: "review_required" });
-
-    await expect(
-      service.publishLaunchPack(created.id, "linkedin", { reviewConfirmed: true }),
-    ).rejects.toMatchObject({ code: "connection_required" });
-
-    const productHuntPublish = await service.publishLaunchPack(created.id, "product_hunt", {
-      reviewConfirmed: true,
-    });
-    expect(productHuntPublish).toMatchObject({
-      channel: "product_hunt",
-      publishStatus: "manual_handoff",
-    });
-  });
-
-  it("omits Product Hunt drafts from default release packs", async () => {
-    const service = await import("../lib/launch-pack-service");
-    const created = await service.createLaunchPack({
-      sourceUrl: "https://example.com",
-      productName: "ProofPitch",
-      targetAudience: "Founder-led B2B teams",
-      launchGoal: "Release with a pitch deck, demo video, YouTube metadata, LinkedIn post, and X thread.",
-    });
-
-    expect(created.releaseChannels).toEqual(["youtube", "linkedin", "x"]);
-    expect(created.channelDrafts.map((draft) => draft.channel).sort()).toEqual([
-      "linkedin",
-      "x",
-      "youtube",
-    ]);
-    expect(created.channelDrafts.find((draft) => draft.channel === "product_hunt")).toBeUndefined();
+    expect(detail?.launchPack.demoVideo.uploadStatus).toBe("blocked_by_provider_review");
   });
 
   it("creates one local pack, exposes full detail, then blocks the capped free pack", async () => {

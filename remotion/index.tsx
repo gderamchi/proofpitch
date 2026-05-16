@@ -6,7 +6,7 @@ import { defaultReleaseDemoProps, ReleaseDemo } from "./ReleaseDemo";
 function RemotionRoot() {
   return (
     <Composition
-      id="ProofPitchReleaseDemo"
+      id="ProofPitchProductDemo"
       component={ReleaseDemo}
       durationInFrames={180}
       fps={30}

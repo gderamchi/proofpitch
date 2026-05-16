@@ -1,52 +1,23 @@
-import { mkdir, writeFile } from "node:fs/promises";
-
-import { fetchWithRetry } from "./retry";
 import {
   DemoVideoSchema,
   PitchDeckSchema,
-  VoiceoverSchema,
   type CreateLaunchPackRequest,
   type DemoVideo,
-  type LinkedInPost,
+  type LaunchScreenshot,
   type PitchDeck,
   type PitchPack,
   type RemotionRenderProps,
-  type SocialChannel,
-  type Voiceover,
-  type XPost,
-  type YouTubeMetadata,
-  type LaunchScreenshot,
 } from "./schemas";
 
-type ReleaseInput = Omit<CreateLaunchPackRequest, "releaseChannels"> & {
-  releaseChannels?: readonly SocialChannel[];
-};
+type ReleaseInput = CreateLaunchPackRequest;
 
 export type ReleaseAssets = {
   pitchDeck: PitchDeck;
-  voiceover: Voiceover;
   demoVideo: DemoVideo;
-  socialPosts: {
-    linkedin: LinkedInPost;
-    x: XPost[];
-  };
-  youtube: YouTubeMetadata;
   releaseChecklist: string[];
 };
 
-const REMOTION_COMPOSITION_ID = "ProofPitchReleaseDemo";
-const DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
-const DEFAULT_TTS_VOICE = "verse";
-
-function compact(value: string, maxLength: number) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxLength - 3).trim()}...`;
-}
+const REMOTION_COMPOSITION_ID = "ProofPitchProductDemo";
 
 function bulletList(items: string[]) {
   return items.map((item) => `- ${item}`).join("\n");
@@ -67,11 +38,7 @@ function createDeckSlides(input: ReleaseInput, pitchPack: PitchPack) {
     },
     {
       title: "Product",
-      body: [
-        `Audience: ${input.targetAudience}`,
-        "",
-        pitchPack.executivePitch,
-      ].join("\n"),
+      body: [`Audience: ${input.targetAudience}`, "", pitchPack.executivePitch].join("\n"),
     },
     {
       title: "Problem",
@@ -85,25 +52,15 @@ function createDeckSlides(input: ReleaseInput, pitchPack: PitchPack) {
       title: "Proof Ledger",
       body: supportedClaims.length
         ? bulletList(
-            supportedClaims.map(
-              (claim) => `${claim.text} (${claim.status.replaceAll("_", " ")})`,
-            ),
+            supportedClaims.map((claim) => `${claim.text} (${claim.status.replaceAll("_", " ")})`),
           )
         : "No supported public claims were available yet.",
     },
     {
-      title: "Demo Path",
-      body: bulletList(pitchPack.liveDemoSteps.slice(0, 5)),
-    },
-    {
-      title: "Release Plan",
+      title: "Product Demo",
       body: bulletList([
-        "Publish the Remotion demo video after review.",
-        "Use the Slidev deck for sales, investor, and partner calls.",
-        "Ship YouTube, LinkedIn, and X posts from the approved copy.",
-        ...(input.releaseChannels?.includes("product_hunt")
-          ? ["Use Product Hunt as an optional handoff channel."]
-          : []),
+        input.demoInstructions || "Capture the first meaningful public product workflow.",
+        ...pitchPack.liveDemoSteps.slice(0, 4),
       ]),
     },
     {
@@ -141,217 +98,84 @@ export function buildSlidevMarkdown(input: ReleaseInput, pitchPack: PitchPack) {
   };
 }
 
-function buildVoiceoverScript(input: ReleaseInput, pitchPack: PitchPack) {
-  return compact(
-    [
-      `${input.productName} is ready for release assets.`,
-      pitchPack.oneLiner,
-      `The product is built for ${input.targetAudience}.`,
-      `The core problem: ${pitchPack.problem}`,
-      `The solution: ${pitchPack.solution}`,
-      "ProofPitch packages the pitch deck, demo video, voiceover, YouTube metadata, LinkedIn post, and X thread from the same reviewed story.",
-      "Before publishing, unsupported claims stay visible so the team does not ship hype as evidence.",
-      `Start from the product at ${input.sourceUrl}, then use the approved release pack for the next external conversation.`,
-    ].join(" "),
-    4000,
-  );
-}
-
-async function maybeGenerateOpenAiVoiceover(script: string): Promise<Voiceover> {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey || process.env.NODE_ENV === "test") {
-    return VoiceoverSchema.parse({
-      status: "script_only",
-      provider: "none",
-      script,
-      format: "wav",
-    });
-  }
-
-  const model = process.env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL;
-  const voice = process.env.OPENAI_TTS_VOICE || DEFAULT_TTS_VOICE;
-
-  try {
-    const response = await fetchWithRetry(
-      "https://api.openai.com/v1/audio/speech",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          voice,
-          input: script.slice(0, 4096),
-          response_format: "wav",
-          instructions: "Speak like a concise product launch narrator: calm, clear, and credible.",
-        }),
-      },
-      { timeoutMs: 60_000 },
-    );
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`OpenAI TTS HTTP ${response.status}: ${detail.slice(0, 240)}`);
-    }
-
-    const assetDir = process.env.PROOFPITCH_RELEASE_ASSET_DIR || ".proofpitch/release-assets";
-    await mkdir(assetDir, { recursive: true });
-    const path = `${assetDir}/${crypto.randomUUID()}-voiceover.wav`;
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await writeFile(path, buffer);
-
-    return VoiceoverSchema.parse({
-      status: "ready",
-      provider: "openai",
-      script,
-      audioUrl: path,
-      format: "wav",
-      voice,
-    });
-  } catch (error) {
-    return VoiceoverSchema.parse({
-      status: "failed",
-      provider: "openai",
-      script,
-      format: "wav",
-      voice,
-      error: error instanceof Error ? error.message : "OpenAI TTS failed.",
-    });
-  }
-}
-
 function createRenderProps({
   input,
   pitchPack,
-  voiceover,
+  screenshots,
 }: {
   input: ReleaseInput;
   pitchPack: PitchPack;
-  voiceover: Voiceover;
+  screenshots: LaunchScreenshot[];
 }): RemotionRenderProps {
   return {
     productName: input.productName,
     oneLiner: pitchPack.oneLiner,
     sourceUrl: input.sourceUrl,
-    deckTitle: `${input.productName} release deck`,
-    slideCount: 8,
-    voiceoverUrl: voiceover.audioUrl,
+    screenshots: screenshots.map((screenshot) => ({
+      title: screenshot.title,
+      url: screenshot.url,
+      alt: screenshot.alt,
+    })),
+    demoSteps: [
+      `Open ${input.productName} at ${input.sourceUrl}.`,
+      input.demoInstructions || "Show the first meaningful public product workflow.",
+      ...pitchPack.liveDemoSteps.slice(0, 3),
+    ],
     captions: [
       `${input.productName}: ${pitchPack.oneLiner}`,
-      "Pitch deck, demo video, voiceover, and launch posts generated from one reviewed narrative.",
-      "Unsupported claims stay out of the public release.",
-    ],
-    scenes: [
-      {
-        kind: "hook",
-        title: input.productName,
-        body: pitchPack.oneLiner,
-      },
-      {
-        kind: "problem",
-        title: "Problem",
-        body: pitchPack.problem,
-      },
-      {
-        kind: "solution",
-        title: "Solution",
-        body: pitchPack.solution,
-      },
-      {
-        kind: "proof",
-        title: "Proof",
-        body:
-          pitchPack.claims.find((claim) => claim.status !== "unsupported")?.text ??
-          "Every public claim is reviewed before publishing.",
-      },
-      {
-        kind: "demo",
-        title: "Demo",
-        body: input.demoInstructions || pitchPack.liveDemoSteps.slice(0, 3).join(" -> "),
-      },
-      {
-        kind: "cta",
-        title: "Release Pack",
-        body: `Use the generated deck, demo video, voiceover, YouTube metadata, LinkedIn post, and X thread for ${input.targetAudience}.`,
-      },
+      "Product demo and pitch deck are separate assets.",
+      "Unsupported claims stay visible before publishing.",
     ],
   };
 }
 
-function buildSocialPosts({
+function buildDemoVideo({
   input,
   pitchPack,
-  demoVideo,
   screenshots,
+  captureVideoUrl,
 }: {
   input: ReleaseInput;
   pitchPack: PitchPack;
-  demoVideo: DemoVideo;
   screenshots: LaunchScreenshot[];
-}): ReleaseAssets["socialPosts"] {
-  const videoMedia = demoVideo.url ? [{ type: "video" as const, url: demoVideo.url, madeWithAi: true }] : undefined;
-  const imageMedia = screenshots[0]
-    ? [{ type: "image" as const, url: screenshots[0].url, madeWithAi: false }]
-    : undefined;
+  captureVideoUrl?: string;
+}) {
+  const renderProps = createRenderProps({ input, pitchPack, screenshots });
 
-  return {
-    linkedin: {
-      text: [
-        `${input.productName} is moving from product to release-ready story.`,
-        "",
-        pitchPack.executivePitch,
-        "",
-        "We packaged the pitch deck, demo video, voiceover, and social copy from one reviewed narrative.",
-        `Product: ${input.sourceUrl}`,
-      ].join("\n"),
-      visibility: "PUBLIC",
-      media: videoMedia,
-    },
-    x: [
-      {
-        text: compact(
-          `${input.productName} now has release assets: pitch deck, demo video, voiceover, YouTube metadata, LinkedIn post, X thread, and a visible claim ledger. ${input.sourceUrl}`,
-          280,
-        ),
-        media: videoMedia,
-      },
-      {
-        text: compact(`Built for ${input.targetAudience}: ${pitchPack.oneLiner}`, 280),
-        media: imageMedia,
-      },
-    ],
-  };
-}
+  if (captureVideoUrl) {
+    return DemoVideoSchema.parse({
+      status: "ready",
+      url: captureVideoUrl,
+      uploadStatus: "uploaded",
+      durationSeconds: 60,
+      renderer: "remotion",
+      compositionId: REMOTION_COMPOSITION_ID,
+      renderProps,
+    });
+  }
 
-function buildYoutubeMetadata(input: ReleaseInput, pitchPack: PitchPack, voiceover: Voiceover): YouTubeMetadata {
-  return {
-    title: `${input.productName} product demo`,
-    description: [
-      pitchPack.demoScript2Min,
-      "",
-      "Generated release assets:",
-      "- Slidev pitch deck",
-      "- Remotion demo video",
-      `- Voiceover: ${voiceover.status.replaceAll("_", " ")}`,
-      "",
-      `Product URL: ${input.sourceUrl}`,
-    ].join("\n"),
-    privacyStatus: "unlisted",
-    tags: [input.productName, "product demo", "pitch deck", "release"].slice(0, 10),
-  };
+  return DemoVideoSchema.parse({
+    status: "pending",
+    uploadStatus: "blocked_by_provider_review",
+    durationSeconds: 0,
+    renderer: "remotion",
+    compositionId: REMOTION_COMPOSITION_ID,
+    renderProps,
+    error:
+      "Product demo video requires Playwright capture. Set PROOFPITCH_PLAYWRIGHT_CAPTURE=1 in a worker that can record the product workflow.",
+  });
 }
 
 export async function buildReleaseAssets({
   input,
   pitchPack,
   screenshots,
+  captureVideoUrl,
 }: {
   input: ReleaseInput;
   pitchPack: PitchPack;
   screenshots: LaunchScreenshot[];
+  captureVideoUrl?: string;
 }): Promise<ReleaseAssets> {
   const { markdown, slideCount } = buildSlidevMarkdown(input, pitchPack);
   const pitchDeck = PitchDeckSchema.parse({
@@ -371,35 +195,14 @@ export async function buildReleaseAssets({
       },
     ],
   });
-  const voiceover = await maybeGenerateOpenAiVoiceover(buildVoiceoverScript(input, pitchPack));
-  const renderProps = createRenderProps({ input, pitchPack, voiceover });
-  const demoVideo = DemoVideoSchema.parse({
-    status: "pending",
-    uploadStatus: "manual_upload_required",
-    durationSeconds: Math.max(45, renderProps.scenes.length * 9),
-    renderer: "remotion",
-    compositionId: REMOTION_COMPOSITION_ID,
-    renderProps,
-    error:
-      process.env.PROOFPITCH_ENABLE_LOCAL_RENDER === "1"
-        ? undefined
-        : "Local Remotion rendering is disabled until PROOFPITCH_ENABLE_LOCAL_RENDER=1.",
-  });
 
   return {
     pitchDeck,
-    voiceover,
-    demoVideo,
-    socialPosts: buildSocialPosts({ input, pitchPack, demoVideo, screenshots }),
-    youtube: buildYoutubeMetadata(input, pitchPack, voiceover),
+    demoVideo: buildDemoVideo({ input, pitchPack, screenshots, captureVideoUrl }),
     releaseChecklist: [
-      "Review the Slidev pitch deck before external use.",
-      "Render or approve the Remotion demo video.",
-      "Confirm the voiceover script and generated audio.",
-      "Publish YouTube, LinkedIn, and X only after final review.",
-      ...(input.releaseChannels?.includes("product_hunt")
-        ? ["Use Product Hunt as an optional manual handoff after release assets are approved."]
-        : []),
+      "Review the product demo capture before external use.",
+      "Review the Slidev pitch deck separately from the product demo video.",
+      "Remove unsupported claims before sharing the pack.",
     ],
   };
 }

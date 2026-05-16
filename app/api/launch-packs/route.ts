@@ -6,17 +6,11 @@ import { CreateLaunchPackRequestSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 
-function requestOrigin(request: Request) {
-  const url = new URL(request.url);
-
-  return `${url.protocol}//${url.host}`;
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = CreateLaunchPackRequestSchema.parse(body);
-    const result = await createLaunchPack(input, { origin: requestOrigin(request) });
+    const result = await createLaunchPack(input);
 
     return NextResponse.json(result);
   } catch (error) {

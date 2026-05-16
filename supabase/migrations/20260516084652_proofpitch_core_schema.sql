@@ -60,15 +60,11 @@ create table if not exists public.pitch_packs (
   input_text text not null,
   project_url text,
   output_json jsonb not null,
-  generated_media_url text,
   approval_note text,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
-alter table public.pitch_packs
-add column if not exists approval_note text;
 
 create table if not exists public.launch_packs (
   id uuid primary key default gen_random_uuid(),
@@ -86,45 +82,12 @@ create table if not exists public.launch_packs (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.channel_drafts (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id) on delete cascade,
-  launch_pack_id uuid not null references public.launch_packs(id) on delete cascade,
-  channel text not null check (channel in ('product_hunt', 'youtube', 'linkedin', 'x')),
-  payload jsonb not null default '{}'::jsonb,
-  review_status text not null default 'pending_review' check (review_status in ('pending_review', 'reviewed')),
-  publish_status text not null default 'pending_review' check (publish_status in ('pending_review', 'ready_to_publish', 'published', 'failed', 'connection_required', 'manual_handoff')),
-  safe_autofill_url text,
-  autofill_token text,
-  external_id text,
-  external_url text,
-  error text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.social_connections (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete set null,
-  provider text not null check (provider in ('youtube', 'linkedin', 'x')),
-  status text not null default 'pending' check (status in ('pending', 'connected', 'revoked', 'failed')),
-  encrypted_access_token text,
-  encrypted_refresh_token text,
-  scopes text[] not null default '{}',
-  expires_at timestamptz,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (organization_id, user_id, provider)
-);
-
 create table if not exists public.source_documents (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   project_id uuid references public.projects(id) on delete set null,
   pitch_pack_id uuid references public.pitch_packs(id) on delete cascade,
-  type text not null check (type in ('user_input', 'web', 'repo', 'audio', 'upload')),
+  type text not null check (type in ('user_input', 'web', 'repo', 'upload')),
   title text not null,
   url text,
   extracted_text text,
@@ -147,7 +110,7 @@ create table if not exists public.claims (
 create table if not exists public.provider_runs (
   id uuid primary key default gen_random_uuid(),
   pitch_pack_id uuid not null references public.pitch_packs(id) on delete cascade,
-  provider text not null check (provider in ('openai', 'tavily', 'fal', 'gradium', 'pioneer')),
+  provider text not null check (provider in ('openai', 'tavily', 'pioneer')),
   status text not null check (status in ('used', 'missing', 'failed', 'fallback', 'pending')),
   latency_ms integer,
   estimated_cost_cents numeric(10, 4),
@@ -174,22 +137,18 @@ create table if not exists public.usage_counters (
 );
 
 grant usage on schema public to authenticated, service_role;
-
 grant select, insert, update, delete on
   public.organizations,
   public.organization_members,
   public.projects,
   public.pitch_packs,
   public.launch_packs,
-  public.channel_drafts,
-  public.social_connections,
   public.source_documents,
   public.claims,
   public.provider_runs,
   public.exports,
   public.usage_counters
 to authenticated, service_role;
-
 grant usage, select on all sequences in schema public to authenticated, service_role;
 
 create or replace function public.set_updated_at()
@@ -203,33 +162,19 @@ end;
 $$;
 
 drop trigger if exists organizations_set_updated_at on public.organizations;
-create trigger organizations_set_updated_at
-before update on public.organizations
+create trigger organizations_set_updated_at before update on public.organizations
 for each row execute function public.set_updated_at();
 
 drop trigger if exists projects_set_updated_at on public.projects;
-create trigger projects_set_updated_at
-before update on public.projects
+create trigger projects_set_updated_at before update on public.projects
 for each row execute function public.set_updated_at();
 
 drop trigger if exists pitch_packs_set_updated_at on public.pitch_packs;
-create trigger pitch_packs_set_updated_at
-before update on public.pitch_packs
+create trigger pitch_packs_set_updated_at before update on public.pitch_packs
 for each row execute function public.set_updated_at();
 
 drop trigger if exists launch_packs_set_updated_at on public.launch_packs;
-create trigger launch_packs_set_updated_at
-before update on public.launch_packs
-for each row execute function public.set_updated_at();
-
-drop trigger if exists channel_drafts_set_updated_at on public.channel_drafts;
-create trigger channel_drafts_set_updated_at
-before update on public.channel_drafts
-for each row execute function public.set_updated_at();
-
-drop trigger if exists social_connections_set_updated_at on public.social_connections;
-create trigger social_connections_set_updated_at
-before update on public.social_connections
+create trigger launch_packs_set_updated_at before update on public.launch_packs
 for each row execute function public.set_updated_at();
 
 alter table public.organizations enable row level security;
@@ -237,8 +182,6 @@ alter table public.organization_members enable row level security;
 alter table public.projects enable row level security;
 alter table public.pitch_packs enable row level security;
 alter table public.launch_packs enable row level security;
-alter table public.channel_drafts enable row level security;
-alter table public.social_connections enable row level security;
 alter table public.source_documents enable row level security;
 alter table public.claims enable row level security;
 alter table public.provider_runs enable row level security;
@@ -247,300 +190,168 @@ alter table public.usage_counters enable row level security;
 
 drop policy if exists "members can read their organizations" on public.organizations;
 create policy "members can read their organizations"
-on public.organizations for select
-to authenticated
+on public.organizations for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = organizations.id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = organizations.id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "owners and admins can update organizations" on public.organizations;
 create policy "owners and admins can update organizations"
-on public.organizations for update
-to authenticated
+on public.organizations for update to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = organizations.id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin')
+    select 1 from public.organization_members m
+    where m.organization_id = organizations.id and m.user_id = auth.uid() and m.role in ('owner', 'admin')
   )
 )
 with check (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = organizations.id
-      and m.user_id = auth.uid()
-      and m.role in ('owner', 'admin')
+    select 1 from public.organization_members m
+    where m.organization_id = organizations.id and m.user_id = auth.uid() and m.role in ('owner', 'admin')
   )
 );
 
 drop policy if exists "users can read their own memberships" on public.organization_members;
 create policy "users can read their own memberships"
-on public.organization_members for select
-to authenticated
+on public.organization_members for select to authenticated
 using (user_id = auth.uid());
 
 drop policy if exists "members can read projects" on public.projects;
 create policy "members can read projects"
-on public.projects for select
-to authenticated
+on public.projects for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = projects.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = projects.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can write projects" on public.projects;
 create policy "members can write projects"
-on public.projects for all
-to authenticated
+on public.projects for all to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = projects.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = projects.organization_id and m.user_id = auth.uid()
   )
 )
 with check (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = projects.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = projects.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read pitch packs" on public.pitch_packs;
 create policy "members can read pitch packs"
-on public.pitch_packs for select
-to authenticated
+on public.pitch_packs for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = pitch_packs.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = pitch_packs.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can write pitch packs" on public.pitch_packs;
 create policy "members can write pitch packs"
-on public.pitch_packs for all
-to authenticated
+on public.pitch_packs for all to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = pitch_packs.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = pitch_packs.organization_id and m.user_id = auth.uid()
   )
 )
 with check (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = pitch_packs.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = pitch_packs.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read launch packs" on public.launch_packs;
 create policy "members can read launch packs"
-on public.launch_packs for select
-to authenticated
+on public.launch_packs for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = launch_packs.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = launch_packs.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can write launch packs" on public.launch_packs;
 create policy "members can write launch packs"
-on public.launch_packs for all
-to authenticated
+on public.launch_packs for all to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = launch_packs.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = launch_packs.organization_id and m.user_id = auth.uid()
   )
 )
 with check (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = launch_packs.organization_id
-      and m.user_id = auth.uid()
-  )
-);
-
-drop policy if exists "members can read channel drafts" on public.channel_drafts;
-create policy "members can read channel drafts"
-on public.channel_drafts for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = channel_drafts.organization_id
-      and m.user_id = auth.uid()
-  )
-);
-
-drop policy if exists "members can write channel drafts" on public.channel_drafts;
-create policy "members can write channel drafts"
-on public.channel_drafts for all
-to authenticated
-using (
-  exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = channel_drafts.organization_id
-      and m.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = channel_drafts.organization_id
-      and m.user_id = auth.uid()
-  )
-);
-
-drop policy if exists "members can read social connections" on public.social_connections;
-create policy "members can read social connections"
-on public.social_connections for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = social_connections.organization_id
-      and m.user_id = auth.uid()
-  )
-);
-
-drop policy if exists "members can write own social connections" on public.social_connections;
-create policy "members can write own social connections"
-on public.social_connections for all
-to authenticated
-using (
-  user_id = auth.uid()
-  and exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = social_connections.organization_id
-      and m.user_id = auth.uid()
-  )
-)
-with check (
-  user_id = auth.uid()
-  and exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = social_connections.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = launch_packs.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read source documents" on public.source_documents;
 create policy "members can read source documents"
-on public.source_documents for select
-to authenticated
+on public.source_documents for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = source_documents.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = source_documents.organization_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read claims" on public.claims;
 create policy "members can read claims"
-on public.claims for select
-to authenticated
+on public.claims for select to authenticated
 using (
   exists (
     select 1
     from public.pitch_packs p
     join public.organization_members m on m.organization_id = p.organization_id
-    where p.id = claims.pitch_pack_id
-      and m.user_id = auth.uid()
+    where p.id = claims.pitch_pack_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read provider runs" on public.provider_runs;
 create policy "members can read provider runs"
-on public.provider_runs for select
-to authenticated
+on public.provider_runs for select to authenticated
 using (
   exists (
     select 1
     from public.pitch_packs p
     join public.organization_members m on m.organization_id = p.organization_id
-    where p.id = provider_runs.pitch_pack_id
-      and m.user_id = auth.uid()
+    where p.id = provider_runs.pitch_pack_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read exports" on public.exports;
 create policy "members can read exports"
-on public.exports for select
-to authenticated
+on public.exports for select to authenticated
 using (
   exists (
     select 1
     from public.pitch_packs p
     join public.organization_members m on m.organization_id = p.organization_id
-    where p.id = exports.pitch_pack_id
-      and m.user_id = auth.uid()
+    where p.id = exports.pitch_pack_id and m.user_id = auth.uid()
   )
 );
 
 drop policy if exists "members can read usage counters" on public.usage_counters;
 create policy "members can read usage counters"
-on public.usage_counters for select
-to authenticated
+on public.usage_counters for select to authenticated
 using (
   exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = usage_counters.organization_id
-      and m.user_id = auth.uid()
+    select 1 from public.organization_members m
+    where m.organization_id = usage_counters.organization_id and m.user_id = auth.uid()
   )
 );
-
-grant usage on schema public to authenticated;
-grant select, insert, update, delete on public.organizations to authenticated;
-grant select, insert, update, delete on public.organization_members to authenticated;
-grant select, insert, update, delete on public.projects to authenticated;
-grant select, insert, update, delete on public.pitch_packs to authenticated;
-grant select, insert, update, delete on public.launch_packs to authenticated;
-grant select, insert, update, delete on public.channel_drafts to authenticated;
-grant select, insert, update, delete on public.social_connections to authenticated;
-grant select on public.source_documents to authenticated;
-grant select, insert, update, delete on public.source_documents to service_role;
-grant select, insert, update, delete on public.claims to authenticated;
-grant select, insert, update, delete on public.provider_runs to authenticated;
-grant select, insert, update, delete on public.exports to authenticated;
-grant select, insert, update, delete on public.usage_counters to authenticated;
 
 insert into storage.buckets (id, name, public)
 values ('proofpitch-exports', 'proofpitch-exports', false)

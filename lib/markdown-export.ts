@@ -57,11 +57,6 @@ ${claims}
 
 ${pitchPack.readmeSnippet}
 
-## Media Prompt
-
-${pitchPack.generatedMediaPrompt}
-
-${pitchPack.generatedMediaUrl ? `Generated media: ${pitchPack.generatedMediaUrl}\n` : ""}
 ## Risks
 
 ${list(pitchPack.risks)}

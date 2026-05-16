@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const outputDir = process.env.PROOFPITCH_RELEASE_ASSET_DIR
@@ -14,43 +14,39 @@ title: "ProofPitch release deck"
 
 # ProofPitch
 
-Release-ready pitch decks, demo videos, voiceovers, and posts.
+Product URL to product demo path and separate pitch deck.
 
 ---
 
 ## Product
 
-ProofPitch turns product context into a release pack.
+ProofPitch turns public product context into an evidence-backed MVP pack.
 
 ---
 
-## Demo
+## Product Demo
 
-Render this sample deck with Slidev and this sample video with Remotion.
+The demo video is generated from product walkthrough capture only.
 `;
 const sampleProps = {
   productName: "ProofPitch",
-  oneLiner: "Release-ready decks, demo videos, voiceovers, and posts from one reviewed product story.",
+  oneLiner: "Turn a product URL into a product demo path, separate pitch deck, and claim ledger.",
   sourceUrl: "https://example.com",
-  deckTitle: "ProofPitch release deck",
-  slideCount: 3,
-  captions: ["Sample release render"],
-  scenes: [
+  screenshots: [
     {
-      kind: "hook",
-      title: "ProofPitch",
-      body: "Release-ready decks, demo videos, voiceovers, and posts.",
+      title: "Product page",
+      url: "https://example.com",
+      alt: "Public product page capture placeholder",
     },
-    {
-      kind: "problem",
-      title: "Problem",
-      body: "Teams need credible release assets before they can sell.",
-    },
-    {
-      kind: "solution",
-      title: "Solution",
-      body: "ProofPitch creates the approved release pack.",
-    },
+  ],
+  demoSteps: [
+    "Open the public product URL.",
+    "Show the primary product workflow.",
+    "Pause on the strongest proof moment.",
+  ],
+  captions: [
+    "Product demo and pitch deck stay separate.",
+    "Claims stay reviewable before sharing.",
   ],
 };
 
@@ -88,7 +84,7 @@ await run("npx", [
   "remotion",
   "render",
   "remotion/index.tsx",
-  "ProofPitchReleaseDemo",
+  "ProofPitchProductDemo",
   path.join(outputDir, "demo-video.mp4"),
   "--props",
   propsPath,

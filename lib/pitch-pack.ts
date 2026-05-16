@@ -1,5 +1,4 @@
 import { buildFallbackPitchPack } from "./demo-data";
-import { generateFalMedia } from "./fal";
 import { generatePitchPackWithOpenAI } from "./openai";
 import { extractWithPioneer } from "./pioneer";
 import { initialProviderReports } from "./providers";
@@ -142,7 +141,7 @@ export async function generatePitchPackWithRunLogs(
   providerRunLogs.push(openaiLog);
   providers.openai = openai.report;
 
-  let pitchPack = openai.pitchPack ?? buildFallbackPitchPack(input.rawInput, input.projectUrl);
+  const pitchPack = openai.pitchPack ?? buildFallbackPitchPack(input.rawInput, input.projectUrl);
 
   if (!openai.pitchPack) {
     providers.openai = {
@@ -157,27 +156,6 @@ export async function generatePitchPackWithRunLogs(
       requestId,
     });
   }
-
-  const { result: fal, log: falLog } = await measureProvider("fal", requestId, () =>
-    generateFalMedia(pitchPack.generatedMediaPrompt),
-  );
-  providerRunLogs.push(falLog);
-  providers.fal = fal.report;
-
-  if (fal.url) {
-    pitchPack = {
-      ...pitchPack,
-      generatedMediaUrl: fal.url,
-    };
-  }
-
-  providerRunLogs.push({
-    provider: "gradium",
-    status: providers.gradium.state,
-    detail: providers.gradium.detail,
-    latencyMs: 0,
-    requestId,
-  });
 
   const usedPartner = Object.entries(providers).some(
     ([name, report]) => name !== "openai" && report.state === "used",

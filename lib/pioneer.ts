@@ -3,10 +3,48 @@ import { fetchWithRetry } from "./retry";
 import type { ProviderReport } from "./schemas";
 
 export type PioneerExtraction = {
-  entities: unknown[];
+  entities: Array<{ type: string; value: string }>;
+  claimRisk?: string;
   raw?: unknown;
   report: ProviderReport;
 };
+
+type PioneerResponse = {
+  result?:
+    | unknown[]
+    | {
+        data?: {
+          entities?: Record<string, string[]>;
+          claim_risk?: string;
+        };
+      };
+};
+
+function extractEntities(raw: PioneerResponse) {
+  if (Array.isArray(raw.result)) {
+    return raw.result
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+
+        const record = item as Record<string, unknown>;
+        const type = typeof record.type === "string" ? record.type : typeof record.label === "string" ? record.label : null;
+        const value = typeof record.value === "string" ? record.value : typeof record.text === "string" ? record.text : null;
+
+        return type && value ? { type, value } : null;
+      })
+      .filter((item): item is { type: string; value: string } => Boolean(item));
+  }
+
+  const nested = raw.result?.data?.entities;
+
+  if (!nested) {
+    return [];
+  }
+
+  return Object.entries(nested).flatMap(([type, values]) => values.map((value) => ({ type, value })));
+}
 
 export async function extractWithPioneer(rawInput: string): Promise<PioneerExtraction> {
   const apiKey = process.env.PIONEER_API_KEY;
@@ -45,17 +83,19 @@ export async function extractWithPioneer(rawInput: string): Promise<PioneerExtra
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const raw = await response.json();
-    const entities = Array.isArray((raw as { result?: unknown[] }).result)
-      ? ((raw as { result: unknown[] }).result)
-      : [];
+    const raw = (await response.json()) as PioneerResponse;
+    const entities = extractEntities(raw);
+    const claimRisk = Array.isArray(raw.result) ? undefined : raw.result?.data?.claim_risk;
 
     return {
       entities,
+      claimRisk,
       raw,
       report: {
         state: "used",
-        detail: `Pioneer returned ${entities.length} extraction item(s).`,
+        detail: `Pioneer returned ${entities.length} extraction item(s)${
+          claimRisk ? ` with ${claimRisk} claim risk` : ""
+        }.`,
       },
     };
   } catch (error) {

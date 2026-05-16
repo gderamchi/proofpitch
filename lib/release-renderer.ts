@@ -79,13 +79,14 @@ export async function renderReleaseArtifacts({
   const deckPngPath = path.join(outputDir, "pitch-deck.png");
   const propsPath = path.join(outputDir, "remotion-props.json");
   const videoPath = path.join(outputDir, "demo-video.mp4");
+  const shouldRenderVideo = demoVideo.status === "ready" && Boolean(demoVideo.renderProps) && !demoVideo.url;
   const slidevPdfArgs = ["@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
   const slidevPngArgs = ["@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
     "remotion",
     "render",
     "remotion/index.tsx",
-    demoVideo.compositionId || "ProofPitchReleaseDemo",
+    demoVideo.compositionId || "ProofPitchProductDemo",
     videoPath,
     "--props",
     propsPath,
@@ -93,7 +94,7 @@ export async function renderReleaseArtifacts({
   const commands = [
     commandLine("npx", slidevPdfArgs),
     commandLine("npx", slidevPngArgs),
-    commandLine("npx", remotionArgs),
+    ...(shouldRenderVideo ? [commandLine("npx", remotionArgs)] : []),
   ];
   const artifacts: RenderArtifact[] = [
     {
@@ -108,12 +109,16 @@ export async function renderReleaseArtifacts({
       status: "pending",
       path: deckPngPath,
     },
-    {
-      type: "video",
-      format: "mp4",
-      status: "pending",
-      path: videoPath,
-    },
+    ...(shouldRenderVideo
+      ? [
+          {
+            type: "video" as const,
+            format: "mp4" as const,
+            status: "pending" as const,
+            path: videoPath,
+          },
+        ]
+      : []),
   ];
 
   if (dryRun) {
@@ -128,11 +133,9 @@ export async function renderReleaseArtifacts({
   try {
     await mkdir(outputDir, { recursive: true });
     await writeFile(deckPath, pitchDeck.markdown, "utf8");
-    await writeFile(
-      propsPath,
-      JSON.stringify(demoVideo.renderProps ?? {}, null, 2),
-      "utf8",
-    );
+    if (shouldRenderVideo) {
+      await writeFile(propsPath, JSON.stringify(demoVideo.renderProps ?? {}, null, 2), "utf8");
+    }
 
     await runCommand("npx", slidevPdfArgs);
     artifacts[0] = {
@@ -146,11 +149,13 @@ export async function renderReleaseArtifacts({
       status: "ready",
     };
 
-    await runCommand("npx", remotionArgs);
-    artifacts[2] = {
-      ...artifacts[2],
-      status: "ready",
-    };
+    if (shouldRenderVideo) {
+      await runCommand("npx", remotionArgs);
+      artifacts[2] = {
+        ...artifacts[2],
+        status: "ready",
+      };
+    }
 
     return {
       enabled: true,

@@ -1,7 +1,6 @@
 import { getBillingMode } from "./plans";
 import type {
   CreateProjectRequest,
-  ChannelDraft,
   GeneratePitchPackRequest,
   GeneratePitchPackResponse,
   LaunchPack,
@@ -48,7 +47,6 @@ type LocalStore = {
 export type LocalStoredLaunchPack = {
   id: string;
   launchPack: LaunchPack;
-  channelDrafts: ChannelDraft[];
 };
 
 const LOCAL_ORGANIZATION_ID = "local-demo";
@@ -307,16 +305,14 @@ export function summarizePitchPack(id: string, pitchPack: PitchPack, record: Pit
     projectName: pitchPack.projectName,
     oneLiner: pitchPack.oneLiner,
     claimCount: pitchPack.claims.length,
-    generatedMediaUrl: pitchPack.generatedMediaUrl ?? null,
   };
 }
 
-export function saveLocalLaunchPack(launchPack: LaunchPack, channelDrafts: ChannelDraft[]) {
+export function saveLocalLaunchPack(launchPack: LaunchPack) {
   const store = getStore();
   const stored: LocalStoredLaunchPack = {
     id: launchPack.id,
     launchPack,
-    channelDrafts,
   };
 
   store.launchPacks.unshift(stored);
@@ -327,20 +323,4 @@ export function saveLocalLaunchPack(launchPack: LaunchPack, channelDrafts: Chann
 
 export function getLocalLaunchPack(id: string) {
   return getStore().launchPacks.find((pack) => pack.id === id) ?? null;
-}
-
-export function updateLocalLaunchPackDraft(id: string, draft: ChannelDraft) {
-  const stored = getLocalLaunchPack(id);
-
-  if (!stored) {
-    return null;
-  }
-
-  stored.channelDrafts = stored.channelDrafts.map((item) => (item.id === draft.id ? draft : item));
-  stored.launchPack = {
-    ...stored.launchPack,
-    updatedAt: new Date().toISOString(),
-  };
-
-  return stored;
 }
