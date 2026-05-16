@@ -803,7 +803,11 @@ export function ProofPitchLanding() {
             }
           : current,
       );
-      if (data.render?.error) {
+      if (data.render && !data.render.enabled) {
+        setRenderMessage(
+          "PDF render is disabled in this environment. Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 to render locally.",
+        );
+      } else if (data.render?.error) {
         setRenderMessage(data.render.error);
       }
     } catch (renderError) {

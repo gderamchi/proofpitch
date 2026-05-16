@@ -449,6 +449,47 @@ describe("backend contracts", () => {
     expect(compiled.slideCount).toBe(outline.slides.length);
   });
 
+  it("keeps dense proof-ledger slides inside the deck schema limit", async () => {
+    const { buildDeckSpec, buildSlidevMarkdownFromDeckSpec } = await import("../lib/deck-spec");
+    const pitchPack = buildPitchPack();
+    const input = {
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales" as const,
+    };
+
+    pitchPack.claims = Array.from({ length: 16 }, (_, index) => ({
+      id: `claim-${index + 1}`,
+      text: `ProofPitch evidence claim ${index + 1} has enough detail to resemble verbose provider output from a real product website, including the buyer context, source framing, and qualification notes.`,
+      status: "supported",
+      sourceType: "web",
+      sourceTitle: "Provider research",
+      sourceUrl: "https://example.com",
+      explanation: "Provider research supported this claim.",
+    }));
+
+    const acceptedClaimIds = pitchPack.claims.map((claim) => claim.id);
+    const outline = buildDeckSpec({
+      input,
+      pitchPack,
+      acceptedClaimIds,
+    });
+    const proofSlide = outline.slides.find((slide) => slide.id === "proof-ledger");
+    const compiled = buildSlidevMarkdownFromDeckSpec({
+      input,
+      outline,
+      pitchPack,
+    });
+
+    expect(proofSlide?.body.length).toBeLessThanOrEqual(1200);
+    expect(proofSlide?.body).toContain("more accepted claims");
+    expect(proofSlide?.claimIds).toEqual(acceptedClaimIds);
+    expect(compiled.slideCount).toBe(outline.slides.length);
+  });
+
   it("validates MVP launch-pack inputs and generated output contracts", async () => {
     expect(() =>
       CreateLaunchPackRequestSchema.parse({

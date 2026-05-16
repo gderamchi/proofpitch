@@ -31,6 +31,8 @@ const modeCopy: Record<DeckMode, { label: string; outcome: string; close: string
   },
 };
 
+const SLIDE_BODY_MAX = 1200;
+
 function compact(value: string, max = 650) {
   const normalized = value.replace(/\s+/g, " ").trim();
 
@@ -41,8 +43,45 @@ function compact(value: string, max = 650) {
   return `${normalized.slice(0, max - 3).trim()}...`;
 }
 
-function bulletList(items: string[]) {
-  return items.map((item) => `- ${compact(item, 220)}`).join("\n");
+function bulletList(
+  items: string[],
+  {
+    bodyMax = SLIDE_BODY_MAX,
+    itemMax = 220,
+    overflowLabel,
+  }: {
+    bodyMax?: number;
+    itemMax?: number;
+    overflowLabel?: (remaining: number) => string;
+  } = {},
+) {
+  const bullets: string[] = [];
+
+  for (let index = 0; index < items.length; index += 1) {
+    const bullet = `- ${compact(items[index], itemMax)}`;
+    const next = [...bullets, bullet].join("\n");
+
+    if (next.length <= bodyMax) {
+      bullets.push(bullet);
+      continue;
+    }
+
+    const remaining = items.length - index;
+    const overflow = `- ${
+      overflowLabel?.(remaining) ?? `${remaining} more item${remaining === 1 ? "" : "s"} kept out of this slide for readability.`
+    }`;
+    const withOverflow = [...bullets, overflow].join("\n");
+
+    if (bullets.length && withOverflow.length <= bodyMax) {
+      bullets.push(overflow);
+    } else if (!bullets.length) {
+      bullets.push(compact(bullet, bodyMax));
+    }
+
+    break;
+  }
+
+  return bullets.join("\n");
 }
 
 function sourceLabel(claim: Claim) {
@@ -171,7 +210,10 @@ export function buildDeckSpec({
         title: "Proof Ledger",
         layout: "proof",
         body: acceptedClaims.length
-          ? bulletList(acceptedClaims.map(sourceLabel))
+          ? bulletList(acceptedClaims.map(sourceLabel), {
+              overflowLabel: (remaining) =>
+                `${remaining} more accepted claim${remaining === 1 ? "" : "s"} kept in the claim ledger.`,
+            })
           : "No claims were accepted for the deck yet. Keep the PDF export gated until at least one claim is approved.",
         claimIds: safeAcceptedClaimIds,
         notes: "Only accepted non-unsupported claims appear here. Rejected and unsupported claims stay out of the deck.",
