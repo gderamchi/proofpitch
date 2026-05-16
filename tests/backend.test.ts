@@ -884,6 +884,16 @@ describe("backend contracts", () => {
       artifacts: [],
     });
 
+    vi.stubEnv("VERCEL", "1");
+    const vercelDryRun = await renderReleaseArtifacts({
+      launchPackId: "launch-1",
+      pitchDeck: assets.pitchDeck,
+      demoVideo: assets.demoVideo,
+      dryRun: true,
+    });
+    expect(vercelDryRun.enabled).toBe(true);
+    vi.unstubAllEnvs();
+
     vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
     const dryRun = await renderReleaseArtifacts({
       launchPackId: "launch-1",

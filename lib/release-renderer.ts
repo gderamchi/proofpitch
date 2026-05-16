@@ -65,6 +65,10 @@ function commandLine(command: string, args: string[]) {
   return [command, ...args.map((arg) => (arg.includes(" ") ? JSON.stringify(arg) : arg))].join(" ");
 }
 
+function renderWorkerEnabled() {
+  return process.env.PROOFPITCH_ENABLE_LOCAL_RENDER === "1" || process.env.VERCEL === "1";
+}
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -253,7 +257,7 @@ export async function renderReleaseArtifacts({
   renderDeck = true,
   renderVideo = true,
 }: RenderReleaseArtifactsInput): Promise<RenderReleaseArtifactsResult> {
-  if (!force && process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
+  if (!force && !renderWorkerEnabled()) {
     return {
       enabled: false,
       commands: [],

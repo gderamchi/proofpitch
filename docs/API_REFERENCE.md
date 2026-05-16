@@ -144,7 +144,7 @@ Behavior:
 
 - If `renderVideo` is exactly `true`, the route uses the video render path.
 - Otherwise it uses the deck-render path and returns `{ "launchPack": ..., "pitchDeck": ..., "render": ..., "requiresSignIn": false }`.
-- Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`.
+- Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`; production rendering is enabled by the Vercel server runtime.
 - Product-site capture is controlled by `PROOFPITCH_PLAYWRIGHT_CAPTURE`.
 - Public video render requests prefer server-side lookup, but may include a full `launchPack` fallback when local serverless storage cannot find the id.
 - Public video render requests cannot set `force`; local rendering remains controlled only by server environment.

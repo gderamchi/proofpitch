@@ -1215,7 +1215,6 @@ export function ProofPitchLanding() {
         body: JSON.stringify({
           captureSite: true,
           dryRun: false,
-          force: true,
           launchPack: result,
           renderDeck: false,
           renderVideo: true,
