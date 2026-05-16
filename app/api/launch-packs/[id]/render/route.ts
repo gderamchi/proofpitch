@@ -23,18 +23,6 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Release pack not found." }, { status: 404 });
     }
 
-    if (result.requiresSignIn) {
-      return NextResponse.json(
-        {
-          error: "Sign in required to render and store the PDF export.",
-          requiresSignIn: true,
-          pitchDeck: result.launchPack.pitchDeck,
-          render: result.render,
-        },
-        { status: 401 },
-      );
-    }
-
     return NextResponse.json({
       pitchDeck: result.launchPack.pitchDeck,
       render: result.render,

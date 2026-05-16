@@ -70,6 +70,10 @@ When Pioneer is unavailable, the app must record the provider state and continue
 
 The system must never return a Slidev deck render as a product demo video. The deck remains a separate `pitchDeck` artifact.
 
+## Free Access And Rendering
+
+ProofPitch currently runs in free-access mode. The product flow must not require login, signup, checkout, paid plans, one-shot credits, or quota headroom. Pricing and packaging belong to `docs/BUSINESS_PLAN.md` until monetization is intentionally re-enabled.
+
 ## Local Rendering
 
 Local rendering is opt-in:
@@ -80,7 +84,7 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 
 When enabled, the renderer can export the Slidev deck. Remotion rendering only runs when `demoVideo.status` is `ready` and render props exist.
 
-Production PDF export is gated behind authenticated storage. Anonymous/local packs may be generated and outlined, but PDF storage should return a sign-in requirement unless local rendering is explicitly enabled.
+When local rendering is disabled, `/api/launch-packs/:id/render` must return `200`, keep `pitchDeck.renderState: "queued"`, and report `render.enabled: false`. It must not return a sign-in requirement.
 
 ## Demo Voiceover
 

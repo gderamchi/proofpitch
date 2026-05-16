@@ -25,7 +25,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 7. User approves non-unsupported claims before ProofPitch builds a structured `DeckOutline`.
 8. ProofPitch compiles the approved `DeckOutline` into deterministic Slidev markdown.
 9. User reviews a visual slide preview with thumbnails, screenshot cues from the captured product surface when available, and can download the underlying Slidev markdown as a secondary technical artifact.
-10. User starts PDF rendering from the approved outline. Production export requires authenticated storage; local rendering remains opt-in.
+10. User starts PDF rendering from the approved outline. The endpoint never requires login; when no render worker is enabled, it keeps the deck queued and reports rendering as disabled.
 11. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
 
 ## 5. P0 Requirements
@@ -51,6 +51,7 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - Generated media prompts.
 - External channel drafts.
 - Pricing presentation on the landing page.
+- Runtime login, paywall, or quota enforcement.
 - Slide video masquerading as a product demo.
 
 Gradium voiceover is a planned extension for the product-demo video only, not for replacing the product demo with a narrated slide deck.
@@ -61,7 +62,7 @@ Gradium voiceover is a planned extension for the product-demo video only, not fo
 - A valid minimal request to `/api/launch-packs` returns `pitchDeck`, `demoVideo`, `pitchPack`, and provider status only.
 - `/api/launch-packs/:id/outline` turns accepted claims into the Slidev outline and markdown.
 - Approved outlines are visible as slides, not only text summaries, and expose a Slidev markdown download.
-- `/api/launch-packs/:id/render` reports PDF render state and blocks anonymous production export.
+- `/api/launch-packs/:id/render` reports PDF render state without blocking anonymous users.
 - No MVP output contains audio scripts, generated media prompts, or external publishing metadata.
 - The deck is clearly separate from the demo video state.
 - Tests and production build pass.

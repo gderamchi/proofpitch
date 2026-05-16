@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
-import { createPitchPack, QuotaExceededError } from "@/lib/pitch-pack-service";
+import { createPitchPack } from "@/lib/pitch-pack-service";
 import { GeneratePitchPackRequestSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
@@ -25,17 +25,6 @@ export async function POST(request: Request) {
           details: formatZodError(error),
         },
         { status: 400 },
-      );
-    }
-
-    if (error instanceof QuotaExceededError) {
-      return NextResponse.json(
-        {
-          error: "Monthly Release Pack quota exceeded.",
-          quota: error.quota,
-          nextActions: ["wait_next_month"],
-        },
-        { status: 402 },
       );
     }
 

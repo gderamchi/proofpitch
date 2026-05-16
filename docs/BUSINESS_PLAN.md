@@ -101,9 +101,11 @@ Recommended launch pricing:
 - Enterprise: custom, custom seats, custom quota, security review, and bespoke controls.
 - Single Release Pack: 49€ one-shot manual credit.
 
+Current product note: pricing is documentation-only while ProofPitch runs in free-access mode. Login, checkout, and usage quotas are not runtime gates for the MVP.
+
 Pricing should be output-limited around Release Packs rather than token-limited. The buyer understands a completed release workflow; they do not naturally value API calls or model tokens.
 
-Billing starts in `manual` mode. Plans, quotas, usage counters, and one-shot credits exist in the backend before automated checkout is added.
+When monetization is re-enabled, billing should start in `manual` mode before automated checkout is added.
 
 ## 5. Unit Economics
 

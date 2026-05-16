@@ -4,7 +4,6 @@ import { ZodError, z } from "zod";
 import {
   createPitchPack,
   listPitchPacks,
-  QuotaExceededError,
 } from "@/lib/pitch-pack-service";
 import { GeneratePitchPackRequestSchema } from "@/lib/schemas";
 
@@ -29,17 +28,6 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid request body.", details: z.treeifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof QuotaExceededError) {
-      return NextResponse.json(
-        {
-          error: "Monthly Release Pack quota exceeded.",
-          quota: error.quota,
-          nextActions: ["wait_next_month"],
-        },
-        { status: 402 },
-      );
     }
 
     const detail = error instanceof Error ? error.message : "Unknown error.";

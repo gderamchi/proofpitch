@@ -1,7 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 
 import { renderPitchPackMarkdown } from "./markdown-export";
-import { getBillingMode, getPlanLimit, normalizePlan, type PlanId } from "./plans";
+import {
+  getRuntimeBillingMode,
+  getRuntimePackLimit,
+  normalizePlan,
+  type PlanId,
+} from "./plans";
 import { generatePitchPackWithRunLogs } from "./pitch-pack";
 import {
   createLocalProject,
@@ -82,15 +87,6 @@ type LocalContext = {
 
 type ServiceContext = SupabaseContext | LocalContext;
 
-export class QuotaExceededError extends Error {
-  quota: QuotaSnapshot;
-
-  constructor(quota: QuotaSnapshot) {
-    super("Monthly Release Pack quota exceeded.");
-    this.quota = quota;
-  }
-}
-
 export class UnauthorizedError extends Error {
   constructor() {
     super("Authentication required.");
@@ -161,7 +157,7 @@ async function ensureOrganizationForUser(admin: SupabaseAdminClient, user: User)
     .insert({
       name: fallbackName,
       plan: "free",
-      billing_mode: getBillingMode(),
+      billing_mode: getRuntimeBillingMode(),
       created_by: user.id,
     })
     .select("id,name,plan,billing_mode,single_pack_credits")
@@ -239,7 +235,7 @@ function quotaFromUsage({
   periodStart: string;
   source: "supabase" | "local";
 }): QuotaSnapshot {
-  const monthlyLimit = getPlanLimit(plan);
+  const monthlyLimit = getRuntimePackLimit();
 
   return {
     organizationId,
@@ -271,7 +267,7 @@ async function getSupabaseQuota(ctx: SupabaseContext): Promise<QuotaSnapshot> {
   return quotaFromUsage({
     organizationId: ctx.organization.id,
     plan,
-    billingMode: ctx.organization.billing_mode || getBillingMode(),
+    billingMode: getRuntimeBillingMode(),
     packCount: Number((data as { pack_count?: number } | null)?.pack_count ?? 0),
     singlePackCredits: Number(ctx.organization.single_pack_credits ?? 0),
     periodStart,
@@ -281,26 +277,6 @@ async function getSupabaseQuota(ctx: SupabaseContext): Promise<QuotaSnapshot> {
 
 async function consumeSupabaseQuota(ctx: SupabaseContext): Promise<QuotaSnapshot> {
   const quota = await getSupabaseQuota(ctx);
-
-  if (quota.remaining <= 0) {
-    throw new QuotaExceededError(quota);
-  }
-
-  let nextSinglePackCredits = quota.singlePackCredits;
-
-  if (quota.usedThisPeriod >= quota.monthlyLimit && nextSinglePackCredits > 0) {
-    nextSinglePackCredits -= 1;
-    const { error } = await ctx.admin
-      .from("organizations")
-      .update({ single_pack_credits: nextSinglePackCredits })
-      .eq("id", ctx.organization.id);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    ctx.organization.single_pack_credits = nextSinglePackCredits;
-  }
 
   const nextPackCount = quota.usedThisPeriod + 1;
   const { error } = await ctx.admin.from("usage_counters").upsert(
@@ -324,7 +300,7 @@ async function consumeSupabaseQuota(ctx: SupabaseContext): Promise<QuotaSnapshot
     plan: quota.plan,
     billingMode: quota.billingMode,
     packCount: nextPackCount,
-    singlePackCredits: nextSinglePackCredits,
+    singlePackCredits: quota.singlePackCredits,
     periodStart: quota.periodStart,
     source: "supabase",
   });
@@ -472,15 +448,7 @@ export async function createPitchPack(input: GeneratePitchPackRequest) {
   const ctx = await getServiceContext();
   const quota =
     ctx.source === "local"
-      ? (() => {
-          const result = consumeLocalQuota();
-
-          if (!result.ok) {
-            throw new QuotaExceededError(result.quota);
-          }
-
-          return result.quota;
-        })()
+      ? consumeLocalQuota().quota
       : await consumeSupabaseQuota(ctx);
 
   const { providerRunLogs, sourceDocuments, requestId: _requestId, ...response } =
@@ -981,16 +949,31 @@ export async function exportPitchPack(id: string, type: "markdown" | "pdf") {
 }
 
 export async function getSessionPayload() {
-  if (!hasSupabaseAdminEnv()) {
+  const configured = hasSupabaseAdminEnv();
+  const user = await getAuthenticatedUser();
+
+  if (!configured || !user) {
     return {
-      configured: false,
-      user: null,
+      configured,
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+          }
+        : null,
       organization: null,
       quota: getLocalQuotaSnapshot(),
     };
   }
 
-  const ctx = await getRequiredSupabaseContext();
+  const admin = assertSupabaseReady();
+  const organization = await ensureOrganizationForUser(admin, user);
+  const ctx: SupabaseContext = {
+    source: "supabase",
+    admin,
+    user,
+    organization,
+  };
 
   return {
     configured: true,

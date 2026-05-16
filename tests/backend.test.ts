@@ -393,8 +393,6 @@ beforeEach(() => {
   stripeState.webhookConstructions = [];
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
-  vi.stubEnv("PROOFPITCH_LOCAL_DEMO_PACK_LIMIT", "1");
-  process.env.PROOFPITCH_LOCAL_DEMO_PACK_LIMIT = "1";
   (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
     undefined;
   vi.resetModules();
@@ -857,7 +855,7 @@ describe("local backend flow", () => {
     expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
   });
 
-  it("approves an outline from the request payload when anonymous local storage is unavailable", async () => {
+  it("approves and queues render from the request payload when anonymous local storage is unavailable", async () => {
     const { POST: create } = await import("../app/api/launch-packs/route");
     const { POST: approveOutline } = await import("../app/api/launch-packs/[id]/outline/route");
     const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
@@ -911,12 +909,13 @@ describe("local backend flow", () => {
     );
     const renderBody = await renderResponse.json();
 
-    expect(renderResponse.status).toBe(401);
-    expect(renderBody.requiresSignIn).toBe(true);
+    expect(renderResponse.status).toBe(200);
+    expect(renderBody.requiresSignIn).toBe(false);
+    expect(renderBody.render.enabled).toBe(false);
     expect(renderBody.pitchDeck.renderState).toBe("queued");
   });
 
-  it("creates one local pack, exposes full detail, then blocks the capped free pack", async () => {
+  it("creates repeated local packs without quota blocking", async () => {
     const service = await import("../lib/pitch-pack-service");
     const input = {
       rawInput: "ProofPitch turns rough founder notes into verified pitch packs.",
@@ -927,14 +926,16 @@ describe("local backend flow", () => {
     const detail = await service.getPitchPackDetail(first.record?.id ?? "");
     const projects = await service.listProjects();
 
-    expect(first.quota?.remaining).toBe(0);
+    expect(first.quota?.billingMode).toBe("free-access");
+    expect(first.quota?.remaining).toBeGreaterThan(1_000_000);
     expect(detail?.sourceDocuments).toHaveLength(2);
     expect(detail?.providerRuns[0].metadata).toMatchObject({ requestId: "req-test" });
     expect(projects.items[0]).toMatchObject({ name: "ProofPitch", pitchPackCount: 1 });
 
-    await expect(service.createPitchPack(input)).rejects.toMatchObject({
-      quota: expect.objectContaining({ remaining: 0 }),
-    });
+    const second = await service.createPitchPack(input);
+
+    expect(second.record?.id).toBeTruthy();
+    expect(second.quota?.remaining).toBeGreaterThan(1_000_000);
   });
 });
 
@@ -989,7 +990,7 @@ describe("Stripe billing routes", () => {
     vi.stubEnv("STRIPE_SINGLE_PRICE_ID", "price_single");
   });
 
-  it("rejects paid checkout for anonymous visitors", async () => {
+  it("keeps checkout disabled while pricing is documentation-only", async () => {
     const { POST } = await import("../app/api/billing/checkout/route");
     const response = await POST(
       new Request("https://proofpitch.test/api/billing/checkout", {
@@ -998,47 +999,14 @@ describe("Stripe billing routes", () => {
         body: JSON.stringify({ plan: "founder" }),
       }),
     );
-
-    expect(response.status).toBe(401);
-    expect(stripeState.checkoutSessions).toHaveLength(0);
-  });
-
-  it("creates a Stripe Checkout subscription session for an authenticated paid plan", async () => {
-    const admin = new MockSupabaseAdmin();
-    mockState.admin = admin;
-    mockState.user = { id: "user-1", email: "founder@example.com" };
-
-    const { POST } = await import("../app/api/billing/checkout/route");
-    const response = await POST(
-      new Request("https://proofpitch.test/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "pro" }),
-      }),
-    );
     const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(body).toMatchObject({
-      checkoutUrl: "https://checkout.stripe.test/proofpitch",
-      plan: "pro",
+    expect(response.status).toBe(410);
+    expect(body.pricing).toMatchObject({
+      mode: "documentation_only",
+      docs: "docs/BUSINESS_PLAN.md",
     });
-    expect(stripeState.instances[0]).toMatchObject({
-      secret: "sk_test_proofpitch",
-      apiVersion: "2026-04-22.dahlia",
-    });
-    expect(stripeState.checkoutSessions[0]).toMatchObject({
-      mode: "subscription",
-      customer_email: "founder@example.com",
-      line_items: [{ price: "price_pro", quantity: 1 }],
-      success_url: "https://proofpitch.test/?checkout=success&plan=pro",
-      cancel_url: "https://proofpitch.test/?checkout=cancelled&plan=pro",
-    });
-    expect(stripeState.checkoutSessions[0].metadata).toMatchObject({
-      plan: "pro",
-      userId: "user-1",
-      organizationId: admin.tables.organizations[0].id,
-    });
+    expect(stripeState.checkoutSessions).toHaveLength(0);
   });
 
   it("applies checkout webhook entitlements to organizations", async () => {

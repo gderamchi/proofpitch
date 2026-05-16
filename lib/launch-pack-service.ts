@@ -343,22 +343,6 @@ export async function startLaunchPackDeckRender(
     throw new Error("Approve the deck outline before rendering the PDF.");
   }
 
-  const hasAuthenticatedStorage = Boolean(await getLaunchContext());
-
-  if (!hasAuthenticatedStorage && process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
-    return {
-      launchPack: patchPitchDeck(launchPack, {
-        renderState: "queued",
-      }),
-      render: {
-        enabled: false,
-        commands: [],
-        artifacts: [],
-      },
-      requiresSignIn: true,
-    };
-  }
-
   const persistence = await persistLaunchPack(
     patchPitchDeck(launchPack, {
       renderState: request.dryRun ? "queued" : "running",
@@ -373,7 +357,7 @@ export async function startLaunchPackDeckRender(
     dryRun: request.dryRun,
   });
 
-  if (request.dryRun) {
+  if (request.dryRun || !render.enabled) {
     const queued = patchPitchDeck(runningPack, { renderState: "queued" });
     await persistLaunchPack(queued);
 

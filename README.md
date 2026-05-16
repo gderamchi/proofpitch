@@ -22,6 +22,10 @@ The app deliberately keeps the deck and product demo separate. A launch-pack req
 
 Out of MVP scope: generated hero media, audio workflows, channel drafts, publishing metadata, and commercial UI.
 
+## Access Mode
+
+ProofPitch currently runs in free-access mode. Login, signup, paid checkout, plan quotas, and one-shot credits are not required for the MVP workflow. Pricing remains documented in [docs/BUSINESS_PLAN.md](docs/BUSINESS_PLAN.md) as a business plan, not as a runtime gate.
+
 ## Local Setup
 
 ```bash
@@ -187,7 +191,7 @@ Request:
 
 ### `POST /api/launch-packs/:id/render`
 
-Starts the PDF render path for an approved outline. Production export is gated behind authenticated storage. Local dev rendering requires:
+Starts the PDF render path for an approved outline. It never requires login. If the render worker is not enabled, the API keeps the deck queued and reports `render.enabled: false`; local rendering requires:
 
 ```bash
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
@@ -207,7 +211,7 @@ Runs Pioneer entity and claim-risk extraction when `PIONEER_API_KEY` is configur
 
 ### `GET /api/health`
 
-Reports OpenAI, Tavily, Pioneer, Supabase, and billing health. Billing and Supabase remain infrastructure concerns; they are not part of the landing-page MVP flow.
+Reports OpenAI, Tavily, Pioneer, Supabase, and billing health. Billing and Supabase remain infrastructure concerns; they are not required for free MVP access.
 
 ## Verification
 
