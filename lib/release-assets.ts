@@ -100,10 +100,13 @@ function createRenderProps({
     productName: input.productName,
     oneLiner: pitchPack.oneLiner,
     sourceUrl: input.sourceUrl,
+    demoPath: input.demoInstructions,
     screenshots: screenshots.map((screenshot) => ({
+      action: "capture",
       title: screenshot.title,
       url: screenshot.url,
       alt: screenshot.alt,
+      target: screenshot.title,
     })),
     demoSteps: [
       `Open ${input.productName} at ${input.sourceUrl}.`,
@@ -151,7 +154,7 @@ function buildDemoVideo({
     compositionId: REMOTION_COMPOSITION_ID,
     renderProps,
     error:
-      "Product demo video requires Playwright capture. Set PROOFPITCH_PLAYWRIGHT_CAPTURE=1 in a worker that can record the product workflow.",
+      "Demo video is ready to render. Use the Remotion render action to capture the site and assemble the MP4.",
   });
 }
 

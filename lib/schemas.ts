@@ -201,12 +201,22 @@ export const ProductDemoScreenshotSchema = z.object({
   title: z.string(),
   url: z.string(),
   alt: z.string(),
+  action: z.enum(["open", "consent", "click", "search", "first_result", "scroll", "capture"]).optional(),
+  target: z.string().optional(),
+  pointer: z
+    .object({
+      x: z.number().min(0).max(100),
+      y: z.number().min(0).max(100),
+    })
+    .optional(),
 });
 
 export const RemotionRenderPropsSchema = z.object({
   productName: z.string(),
   oneLiner: z.string(),
   sourceUrl: z.string().url(),
+  browserRecordingUrl: z.string().optional(),
+  demoPath: z.string().optional(),
   screenshots: z.array(ProductDemoScreenshotSchema),
   demoSteps: z.array(z.string()).min(1),
   captions: z.array(z.string()),
@@ -323,6 +333,7 @@ export type DeckSlideVisual = z.infer<typeof DeckSlideVisualSchema>;
 export type DeckSlideSpec = z.infer<typeof DeckSlideSpecSchema>;
 export type DeckOutline = z.infer<typeof DeckOutlineSchema>;
 export type PitchDeck = z.infer<typeof PitchDeckSchema>;
+export type ProductDemoScreenshot = z.infer<typeof ProductDemoScreenshotSchema>;
 export type RemotionRenderProps = z.infer<typeof RemotionRenderPropsSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
 export type LaunchPack = z.infer<typeof LaunchPackSchema>;

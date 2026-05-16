@@ -3,10 +3,10 @@
 ProofPitch is an MVP for one workflow:
 
 ```text
-product URL + short context + deck mode -> claim review -> visual Slidev preview -> PDF render state
+product URL + short context + deck mode -> claim review -> visual Slidev preview + Remotion demo video render -> PDF/render state
 ```
 
-The app deliberately keeps the deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. When Playwright capture is disabled or cannot record the product URL, the API returns `demoVideo.status: "pending"` with an explicit blocker instead of pretending a slide video is a product demo.
+The app deliberately keeps the deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. The API can return `demoVideo.status: "pending"` first, then the UI can render a real Remotion MP4 by capturing the submitted site URL with Playwright screenshots. When Playwright capture is disabled or cannot record the product URL, the API keeps the video pending with an explicit blocker instead of pretending a slide video is a product demo.
 
 ## MVP Scope
 
@@ -139,6 +139,15 @@ GRADIUM_API_KEY=
 GRADIUM_VOICE_ID=
 ```
 
+The homepage also exposes a "Render demo video" action after a launch pack is generated. It captures the entered URL, passes the frames into the Remotion composition, and serves the MP4 from `/api/launch-packs/:id/video`.
+
+The render action uses a lightweight demo-path agent. It can:
+
+- handle common consent banners such as "Accept all", "Tout accepter", or "Reject all";
+- follow simple user path instructions such as "search pricing", "click Contact", "open the first result", or "scroll down";
+- capture a frame after each step so the Remotion video shows an actual walkthrough instead of a static first page.
+The Remotion walkthrough is rendered as a longer 24-second video and can be opened full-size from the generated output card.
+
 ## Main API
 
 ### `POST /api/launch-packs`
@@ -151,7 +160,7 @@ Request:
   "productName": "ProofPitch",
   "targetAudience": "Founder-led B2B teams",
   "launchGoal": "Prepare a customer-call demo and concise deck.",
-  "demoInstructions": "Show the core workflow and proof moment.",
+  "demoInstructions": "Accept cookies if needed, search pricing, then scroll to the CTA.",
   "deckMode": "sales"
 }
 ```
@@ -175,7 +184,7 @@ Response shape:
 }
 ```
 
-`demoVideo.status` is `ready` only when product walkthrough capture produced a real video path. Otherwise it is explicitly pending or blocked.
+`demoVideo.status` becomes `ready` when product walkthrough capture or the Remotion render action produced a real video path. Otherwise it is explicitly pending or blocked.
 
 ### `POST /api/launch-packs/:id/outline`
 
@@ -191,11 +200,13 @@ Request:
 
 ### `POST /api/launch-packs/:id/render`
 
-Starts the PDF render path for an approved outline. It never requires login. If the render worker is not enabled, the API keeps the deck queued and reports `render.enabled: false`; local rendering requires:
+Starts the render path for approved deck assets and/or the Remotion demo video. It never requires login. If the render worker is not enabled, the PDF path keeps the deck queued and reports `render.enabled: false`; local rendering requires:
 
 ```bash
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
+
+The homepage video action calls the same endpoint with `renderVideo: true`, `renderDeck: false`, `captureSite: true`, and `force: true` so the Remotion MP4 can be rendered after the pack exists.
 
 ### `POST /api/generate-pitch-pack`
 

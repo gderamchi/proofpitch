@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clipboard,
   Download,
+  ExternalLink,
   FileText,
   Loader2,
 } from "lucide-react";
@@ -21,7 +22,7 @@ const sampleInput = {
   productName: "ProofPitch",
   targetAudience: "Founder-led B2B teams",
   launchGoal: "Prepare a customer-call demo and concise deck.",
-  demoInstructions: "Show the core workflow and proof moment.",
+  demoInstructions: "Accept cookies if needed, scroll to the proof moment, then show the core workflow.",
   deckMode: "sales" as DeckMode,
 };
 
@@ -47,6 +48,16 @@ type RenderDeckResponse = {
     }>;
     error?: string;
   };
+};
+
+type RenderVideoResponse = {
+  error?: string;
+  detail?: string;
+  videoUrl?: string;
+  artifacts?: Array<{
+    type?: string;
+    status?: string;
+  }>;
 };
 
 function ProofPitchLogo() {
@@ -204,14 +215,14 @@ function SlideVisualPanel({
 
   if (visual.kind === "claim_stack") {
     return (
-      <div className="grid h-full content-center gap-2 border border-teal-900 bg-white p-3 shadow-[6px_6px_0_rgba(15,118,110,0.16)]">
+      <div className="grid h-full content-start gap-1.5 border border-teal-900 bg-white p-2.5 shadow-[6px_6px_0_rgba(15,118,110,0.16)]">
         <p className="text-[10px] font-semibold uppercase tracking-normal text-teal-800">{visual.title}</p>
-        {lines.slice(0, 3).map((line, index) => (
-          <div key={line} className="border border-stone-300 bg-[#f7fbf7] p-2">
+        {lines.slice(0, 2).map((line, index) => (
+          <div key={line} className="border border-stone-300 bg-[#f7fbf7] p-1.5">
             <p className="text-[9px] font-semibold uppercase tracking-normal text-stone-500">
               Evidence {index + 1}
             </p>
-            <p className="line-clamp-2 text-[11px] leading-4 text-stone-800">{line}</p>
+            <p className="line-clamp-2 text-[10px] leading-3 text-stone-800">{line}</p>
           </div>
         ))}
       </div>
@@ -284,7 +295,7 @@ function SlideCanvas({
   const lines = bodyLines(slide.body);
   const cover = slide.layout === "cover";
   const proof = slide.layout === "proof";
-  const displayLines = lines.slice(0, proof ? 3 : cover ? 3 : 4);
+  const displayLines = lines.slice(0, proof ? 2 : cover ? 3 : 4);
 
   return (
     <div
@@ -324,14 +335,14 @@ function SlideCanvas({
                 compact
                   ? "hidden"
                   : proof
-                    ? "text-xs leading-5 text-stone-800"
+                    ? "text-[11px] leading-4 text-stone-800"
                     : cover
                       ? "text-sm leading-6 text-white/85"
                       : "text-xs leading-5 text-stone-700"
               }`}
             >
               {displayLines.map((line) => (
-                <p key={line} className={line.length > 126 ? "line-clamp-2" : undefined}>
+                <p key={line} className={proof || line.length > 126 ? "line-clamp-2" : undefined}>
                   {proof ? "- " : ""}
                   {line}
                 </p>
@@ -424,6 +435,9 @@ function OutputPreview({
   onApproveOutline,
   onRenderDeck,
   onCopy,
+  onRenderVideo,
+  isRenderingVideo,
+  renderState,
 }: {
   launchPack: LaunchPack | null;
   isGenerating: boolean;
@@ -435,6 +449,9 @@ function OutputPreview({
   onApproveOutline: () => Promise<void>;
   onRenderDeck: () => Promise<void>;
   onCopy: (text: string) => Promise<void>;
+  onRenderVideo: () => Promise<void>;
+  isRenderingVideo: boolean;
+  renderState: string | null;
 }) {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
@@ -522,7 +539,44 @@ function OutputPreview({
         ))}
       </div>
 
-      {launchPack.demoVideo.error ? (
+      {launchPack.demoVideo.url ? (
+        <div className="grid gap-3">
+          <video
+            src={launchPack.demoVideo.url}
+            controls
+            playsInline
+            preload="metadata"
+            className="aspect-video w-full border border-stone-900 bg-stone-950"
+          />
+          <a
+            href={launchPack.demoVideo.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex w-fit items-center gap-2 border border-stone-900 bg-white px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
+          >
+            <ExternalLink size={15} />
+            Open full-size video
+          </a>
+        </div>
+      ) : (
+        <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
+          <p className="text-sm leading-6 text-stone-700">
+            Let the demo agent handle consent, follow your path instructions, then assemble the walkthrough as a Remotion MP4.
+          </p>
+          <button
+            type="button"
+            onClick={() => void onRenderVideo()}
+            disabled={isRenderingVideo}
+            className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+            {isRenderingVideo ? "Rendering video" : "Render demo video"}
+          </button>
+          {renderState ? <p className="text-sm font-medium text-teal-800">{renderState}</p> : null}
+        </div>
+      )}
+
+      {launchPack.demoVideo.error && !launchPack.demoVideo.url ? (
         <div className="flex gap-3 border border-amber-800 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
           <AlertCircle size={16} className="mt-1 shrink-0" />
           {launchPack.demoVideo.error}
@@ -689,6 +743,8 @@ export function ProofPitchLanding() {
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<string | null>(null);
   const [renderMessage, setRenderMessage] = useState<string | null>(null);
+  const [isRenderingVideo, setIsRenderingVideo] = useState(false);
+  const [videoRenderMessage, setVideoRenderMessage] = useState<string | null>(null);
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -696,6 +752,7 @@ export function ProofPitchLanding() {
     setError(null);
     setCopyState(null);
     setRenderMessage(null);
+    setVideoRenderMessage(null);
 
     try {
       const response = await fetch("/api/launch-packs", {
@@ -748,6 +805,7 @@ export function ProofPitchLanding() {
     setIsApproving(true);
     setError(null);
     setRenderMessage(null);
+    setVideoRenderMessage(null);
 
     try {
       const response = await fetch(`/api/launch-packs/${result.id}/outline`, {
@@ -779,6 +837,7 @@ export function ProofPitchLanding() {
     setIsRendering(true);
     setError(null);
     setRenderMessage(null);
+    setVideoRenderMessage(null);
 
     try {
       const response = await fetch(`/api/launch-packs/${result.id}/render`, {
@@ -817,6 +876,70 @@ export function ProofPitchLanding() {
     }
   }
 
+  async function renderDemoVideo() {
+    if (!result) {
+      return;
+    }
+
+    setIsRenderingVideo(true);
+    setVideoRenderMessage("Capturing the site and rendering with Remotion...");
+    setError(null);
+    setRenderMessage(null);
+
+    try {
+      const response = await fetch(`/api/launch-packs/${result.id}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: false,
+          force: true,
+          launchPack: result,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      });
+      const data = (await response.json()) as RenderVideoResponse;
+
+      if (!response.ok || data.error) {
+        throw new Error(data.detail ?? data.error ?? "Video render failed.");
+      }
+
+      const videoArtifact = Array.isArray(data.artifacts)
+        ? data.artifacts.find((artifact: { type?: string }) => artifact.type === "video")
+        : null;
+
+      if (!videoArtifact || videoArtifact.status !== "ready") {
+        throw new Error(data.error ?? "Video render did not finish.");
+      }
+
+      const videoUrl = `${data.videoUrl ?? `/api/launch-packs/${result.id}/video`}?v=${Date.now()}`;
+
+      setResult({
+        ...result,
+        demoVideo: {
+          ...result.demoVideo,
+          status: "ready",
+          durationSeconds: 24,
+          uploadStatus: "not_required",
+          url: videoUrl,
+          error: undefined,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+      setVideoRenderMessage("Demo video rendered.");
+    } catch (renderError) {
+      const message = renderError instanceof Error ? renderError.message : "Video render failed.";
+
+      setError(message);
+      setVideoRenderMessage(null);
+    } finally {
+      setIsRenderingVideo(false);
+    }
+  }
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#edf4f1] text-stone-950">
       <section className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
@@ -850,7 +973,8 @@ export function ProofPitchLanding() {
               Product URL to product demo video and pitch deck.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-stone-600">
-              ProofPitch keeps the product demo separate from the deck and flags claims before anything is shared.
+              ProofPitch now uses a small demo agent: it handles cookie walls, follows your path
+              instructions, then turns that walkthrough into a Remotion video.
             </p>
           </div>
 
@@ -892,7 +1016,7 @@ export function ProofPitchLanding() {
               onChange={(event) => setDemoInstructions(event.target.value)}
               rows={2}
               className="resize-none border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm leading-6 outline-none focus:border-teal-800"
-              placeholder="Product demo path"
+              placeholder="Demo path, e.g. accept cookies, search Pricing, open the first result, scroll to the CTA"
             />
             <div className="grid gap-2">
               <div className="grid grid-cols-3 border border-stone-300 bg-[#f8fbf8] p-1">
@@ -937,6 +1061,9 @@ export function ProofPitchLanding() {
           onApproveOutline={approveOutline}
           onRenderDeck={renderDeck}
           onCopy={copyText}
+          onRenderVideo={renderDemoVideo}
+          isRenderingVideo={isRenderingVideo}
+          renderState={videoRenderMessage}
         />
       </section>
     </main>

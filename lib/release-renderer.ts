@@ -1,14 +1,20 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { DemoVideo, PitchDeck } from "./schemas";
+import { captureWebsiteScreenshots } from "./demo-video-capture";
+import type { DemoVideo, PitchDeck, RemotionRenderProps } from "./schemas";
 
 type RenderReleaseArtifactsInput = {
   launchPackId: string;
   pitchDeck: PitchDeck;
   demoVideo: DemoVideo;
+  captureSite?: boolean;
+  baseUrl?: string;
   dryRun?: boolean;
+  force?: boolean;
+  renderDeck?: boolean;
+  renderVideo?: boolean;
 };
 
 type RenderArtifact = {
@@ -25,10 +31,31 @@ type RenderReleaseArtifactsResult = {
   commands: string[];
   artifacts: RenderArtifact[];
   error?: string;
+  videoUrl?: string;
 };
 
-function outputDirForLaunchPack(launchPackId: string) {
+export function outputDirForLaunchPack(launchPackId: string) {
   return path.join(process.cwd(), ".proofpitch", "release-assets", launchPackId);
+}
+
+export function renderedDemoVideoPath(launchPackId: string) {
+  return path.join(outputDirForLaunchPack(launchPackId), "demo-video.mp4");
+}
+
+export function renderedDemoVideoUrl(launchPackId: string) {
+  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/video`;
+}
+
+export function renderedBrowserRecordingPath(launchPackId: string) {
+  return path.join(outputDirForLaunchPack(launchPackId), "browser-recording.webm");
+}
+
+export function renderedBrowserRecordingUrl(launchPackId: string) {
+  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/recording`;
+}
+
+function absoluteUrl(baseUrl: string | undefined, urlPath: string) {
+  return new URL(urlPath, baseUrl || "http://localhost:3000").toString();
 }
 
 function commandLine(command: string, args: string[]) {
@@ -59,13 +86,54 @@ async function runCommand(command: string, args: string[]) {
   });
 }
 
+async function withCapturedScreenshots(
+  launchPackId: string,
+  outputDir: string,
+  renderProps: RemotionRenderProps,
+  captureSite: boolean,
+  baseUrl?: string,
+) {
+  if (!captureSite) {
+    return renderProps;
+  }
+
+  const capture = await captureWebsiteScreenshots({
+    outputDir: path.join(outputDir, "captures"),
+    pathInstructions: renderProps.demoPath,
+    productName: renderProps.productName,
+    sourceUrl: renderProps.sourceUrl,
+  });
+
+  const recordingPath = capture.recordingPath ? renderedBrowserRecordingPath(launchPackId) : undefined;
+
+  if (capture.recordingPath && recordingPath) {
+    await copyFile(capture.recordingPath, recordingPath);
+  }
+
+  return {
+    ...renderProps,
+    browserRecordingUrl: recordingPath ? absoluteUrl(baseUrl, renderedBrowserRecordingUrl(launchPackId)) : undefined,
+    screenshots: capture.screenshots,
+    demoSteps: capture.steps.length ? capture.steps : renderProps.demoSteps,
+    captions: [
+      ...renderProps.captions,
+      `Captured ${capture.screenshots.length} screen${capture.screenshots.length === 1 ? "" : "s"} for ${launchPackId}.`,
+    ].slice(0, 5),
+  };
+}
+
 export async function renderReleaseArtifacts({
+  baseUrl,
   launchPackId,
   pitchDeck,
   demoVideo,
+  captureSite = true,
   dryRun = false,
+  force = false,
+  renderDeck = true,
+  renderVideo = true,
 }: RenderReleaseArtifactsInput): Promise<RenderReleaseArtifactsResult> {
-  if (process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
+  if (!force && process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
     return {
       enabled: false,
       commands: [],
@@ -78,8 +146,9 @@ export async function renderReleaseArtifacts({
   const deckPdfPath = path.join(outputDir, "pitch-deck.pdf");
   const deckPngPath = path.join(outputDir, "pitch-deck.png");
   const propsPath = path.join(outputDir, "remotion-props.json");
-  const videoPath = path.join(outputDir, "demo-video.mp4");
-  const shouldRenderVideo = demoVideo.status === "ready" && Boolean(demoVideo.renderProps) && !demoVideo.url;
+  const videoPath = renderedDemoVideoPath(launchPackId);
+  const shouldRenderDeck = renderDeck;
+  const shouldRenderVideo = renderVideo && Boolean(demoVideo.renderProps) && !demoVideo.url;
   const slidevPdfArgs = ["@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
   const slidevPngArgs = ["@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
@@ -90,25 +159,31 @@ export async function renderReleaseArtifacts({
     videoPath,
     "--props",
     propsPath,
+    "--codec",
+    "h264",
+    "--overwrite",
   ];
   const commands = [
-    commandLine("npx", slidevPdfArgs),
-    commandLine("npx", slidevPngArgs),
+    ...(shouldRenderDeck ? [commandLine("npx", slidevPdfArgs), commandLine("npx", slidevPngArgs)] : []),
     ...(shouldRenderVideo ? [commandLine("npx", remotionArgs)] : []),
   ];
   const artifacts: RenderArtifact[] = [
-    {
-      type: "deck",
-      format: "pdf",
-      status: "pending",
-      path: deckPdfPath,
-    },
-    {
-      type: "deck",
-      format: "png",
-      status: "pending",
-      path: deckPngPath,
-    },
+    ...(shouldRenderDeck
+      ? [
+          {
+            type: "deck" as const,
+            format: "pdf" as const,
+            status: "pending" as const,
+            path: deckPdfPath,
+          },
+          {
+            type: "deck" as const,
+            format: "png" as const,
+            status: "pending" as const,
+            path: deckPngPath,
+          },
+        ]
+      : []),
     ...(shouldRenderVideo
       ? [
           {
@@ -127,32 +202,48 @@ export async function renderReleaseArtifacts({
       outputDir,
       commands,
       artifacts,
+      videoUrl: shouldRenderVideo ? renderedDemoVideoUrl(launchPackId) : undefined,
     };
   }
 
   try {
     await mkdir(outputDir, { recursive: true });
-    await writeFile(deckPath, pitchDeck.markdown, "utf8");
-    if (shouldRenderVideo) {
-      await writeFile(propsPath, JSON.stringify(demoVideo.renderProps ?? {}, null, 2), "utf8");
+
+    if (shouldRenderDeck) {
+      await writeFile(deckPath, pitchDeck.markdown, "utf8");
     }
 
-    await runCommand("npx", slidevPdfArgs);
-    artifacts[0] = {
-      ...artifacts[0],
-      status: "ready",
-    };
+    if (shouldRenderVideo) {
+      const renderProps = await withCapturedScreenshots(
+        launchPackId,
+        outputDir,
+        demoVideo.renderProps as RemotionRenderProps,
+        captureSite,
+        baseUrl,
+      );
 
-    await runCommand("npx", slidevPngArgs);
-    artifacts[1] = {
-      ...artifacts[1],
-      status: "ready",
-    };
+      await writeFile(propsPath, JSON.stringify(renderProps, null, 2), "utf8");
+    }
+
+    if (shouldRenderDeck) {
+      await runCommand("npx", slidevPdfArgs);
+      artifacts[0] = {
+        ...artifacts[0],
+        status: "ready",
+      };
+
+      await runCommand("npx", slidevPngArgs);
+      artifacts[1] = {
+        ...artifacts[1],
+        status: "ready",
+      };
+    }
 
     if (shouldRenderVideo) {
       await runCommand("npx", remotionArgs);
-      artifacts[2] = {
-        ...artifacts[2],
+      const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
+      artifacts[videoArtifactIndex] = {
+        ...artifacts[videoArtifactIndex],
         status: "ready",
       };
     }
@@ -162,6 +253,7 @@ export async function renderReleaseArtifacts({
       outputDir,
       commands,
       artifacts,
+      videoUrl: shouldRenderVideo ? renderedDemoVideoUrl(launchPackId) : undefined,
     };
   } catch (error) {
     return {

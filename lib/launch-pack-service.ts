@@ -355,6 +355,7 @@ export async function startLaunchPackDeckRender(
     pitchDeck: runningPack.pitchDeck,
     demoVideo: runningPack.demoVideo,
     dryRun: request.dryRun,
+    renderVideo: false,
   });
 
   if (request.dryRun || !render.enabled) {

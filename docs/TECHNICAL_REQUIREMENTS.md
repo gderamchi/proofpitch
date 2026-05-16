@@ -69,6 +69,15 @@ When Pioneer is unavailable, the app must record the provider state and continue
 - `pending` or `failed`: capture is unavailable or failed.
 
 The system must never return a Slidev deck render as a product demo video. The deck remains a separate `pitchDeck` artifact.
+When the launch pack is pending, the UI can trigger the Remotion render action. That action runs the demo-path agent, captures the submitted site URL with Playwright screenshots, passes those frames into the Remotion composition, and writes a real MP4.
+
+The demo-path agent must:
+
+- try common consent buttons before capturing the walkthrough;
+- preserve the user's `demoInstructions` as Remotion `demoPath`;
+- support simple click, search, first-result, and scroll instructions;
+- keep a step log in `demoSteps` so the video captions describe what the agent did.
+Remotion demo videos should be long enough to inspect the site, with the browser capture as the dominant visual surface and an option in the UI to open the MP4 full-size.
 
 ## Free Access And Rendering
 
@@ -82,7 +91,8 @@ Local rendering is opt-in:
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
-When enabled, the renderer can export the Slidev deck. Remotion rendering only runs when `demoVideo.status` is `ready` and render props exist.
+When enabled, the renderer can export the Slidev deck and render a Remotion MP4 from `demoVideo.renderProps`.
+The interactive UI render action may force a local video render for the selected launch pack; direct helper usage remains opt-in through the environment flag.
 
 When local rendering is disabled, `/api/launch-packs/:id/render` must return `200`, keep `pitchDeck.renderState: "queued"`, and report `render.enabled: false`. It must not return a sign-in requirement.
 
