@@ -772,8 +772,8 @@ describe("backend contracts", () => {
       dryRun: true,
     });
     expect(dryRun.enabled).toBe(true);
-    expect(dryRun.commands.join("\n")).toContain("slidev export");
-    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.commands.join("\n")).toContain("slidev.mjs export");
+    expect(dryRun.commands.join("\n")).toContain("remotion-cli.js render");
     expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
   });
 
@@ -914,7 +914,7 @@ describe("local backend flow", () => {
 
     expect(renderResponse.status).toBe(200);
     expect(renderBody.pitchDeck.renderState).toBe("queued");
-    expect(renderBody.render.commands.join("\n")).toContain("slidev export");
+    expect(renderBody.render.commands.join("\n")).toContain("slidev.mjs export");
     expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
   });
 
