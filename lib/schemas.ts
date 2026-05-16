@@ -253,6 +253,7 @@ export const ExportRequestSchema = z.object({
 
 export const ApproveDeckOutlineRequestSchema = z.object({
   acceptedClaimIds: z.array(z.string()).min(1, "Accept at least one claim for the deck outline."),
+  launchPack: LaunchPackSchema.optional(),
 });
 
 export const RenderLaunchDeckRequestSchema = z.object({

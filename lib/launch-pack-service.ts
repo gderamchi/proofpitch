@@ -239,11 +239,16 @@ export async function approveLaunchPackDeckOutline(
   const approval = ApproveDeckOutlineRequestSchema.parse(input);
   const detail = await getLaunchPackDetail(id);
 
-  if (!detail) {
+  if (!detail && approval.launchPack?.id !== id) {
     return null;
   }
 
-  const base = detail.launchPack;
+  const base = detail?.launchPack ?? approval.launchPack;
+
+  if (!base) {
+    return null;
+  }
+
   const pitchDeck = buildApprovedPitchDeck({
     input: launchPackInput(base),
     pitchPack: base.pitchPack,

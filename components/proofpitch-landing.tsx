@@ -371,7 +371,7 @@ export function ProofPitchLanding() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ acceptedClaimIds }),
+        body: JSON.stringify({ acceptedClaimIds, launchPack: result }),
       });
       const data = await response.json();
 

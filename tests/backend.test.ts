@@ -844,6 +844,47 @@ describe("local backend flow", () => {
     expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
   });
 
+  it("approves an outline from the request payload when anonymous local storage is unavailable", async () => {
+    const { POST: create } = await import("../app/api/launch-packs/route");
+    const { POST: approveOutline } = await import("../app/api/launch-packs/[id]/outline/route");
+
+    const createResponse = await create(
+      new Request("https://proofpitch.test/api/launch-packs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceUrl: "https://example.com",
+          productName: "ProofPitch",
+          targetAudience: "Founder-led B2B teams",
+          launchGoal: "Release with a pitch deck and product demo video",
+          deckMode: "sales",
+        }),
+      }),
+    );
+    const created = await createResponse.json();
+
+    (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
+      undefined;
+
+    const outlineResponse = await approveOutline(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/outline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acceptedClaimIds: created.claimReview.acceptedClaimIds,
+          launchPack: created,
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const outlined = await outlineResponse.json();
+
+    expect(outlineResponse.status).toBe(200);
+    expect(outlined.id).toBe(created.id);
+    expect(outlined.pitchDeck.status).toBe("ready");
+    expect(outlined.pitchDeck.markdown).toContain("Proof Ledger");
+  });
+
   it("creates one local pack, exposes full detail, then blocks the capped free pack", async () => {
     const service = await import("../lib/pitch-pack-service");
     const input = {
