@@ -978,24 +978,42 @@ describe("local backend flow", () => {
     expect(renderBody.pitchDeck.renderState).toBe("queued");
   });
 
-  it("does not allow public video render requests to force rendering or supply fallback launch packs", async () => {
+  it("allows public video render requests to carry the launch pack for serverless fallback", async () => {
+    const service = await import("../lib/launch-pack-service");
     const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+    const created = await service.createLaunchPack({
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales",
+    });
+    const fallbackPack = {
+      ...created,
+      id: "fallback-pack",
+    };
 
     const forcedResponse = await render(
-      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+      new Request("https://proofpitch.test/api/launch-packs/fallback-pack/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           captureSite: true,
+          dryRun: true,
           force: true,
+          launchPack: fallbackPack,
           renderDeck: false,
           renderVideo: true,
         }),
       }),
-      { params: Promise.resolve({ id: "missing" }) },
+      { params: Promise.resolve({ id: "fallback-pack" }) },
     );
+    const forcedBody = await forcedResponse.json();
 
-    expect(forcedResponse.status).toBe(400);
+    expect(forcedResponse.status).toBe(200);
+    expect(forcedBody.enabled).toBe(true);
+    expect(forcedBody.videoUrl).toBe("/api/launch-packs/fallback-pack/video");
 
     const fallbackResponse = await render(
       new Request("https://proofpitch.test/api/launch-packs/missing/render", {

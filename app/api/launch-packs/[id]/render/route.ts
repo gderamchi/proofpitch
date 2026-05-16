@@ -78,9 +78,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     const input = RenderLaunchVideoRequestSchema.parse(body);
     const detail = await getLaunchPackDetail(id);
-    const launchPack = detail?.launchPack;
+    const launchPack = detail?.launchPack ?? input.launchPack;
 
-    if (!launchPack) {
+    if (!launchPack || launchPack.id !== id) {
       return NextResponse.json({ error: "Release pack not found." }, { status: 404 });
     }
 
@@ -91,6 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
       demoVideo: launchPack.demoVideo,
       captureSite: input.captureSite,
       dryRun: input.dryRun,
+      force: input.force,
       renderDeck: false,
       renderVideo: true,
     });
