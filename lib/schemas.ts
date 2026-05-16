@@ -366,7 +366,6 @@ export const RenderLaunchVideoRequestSchema = z
   .object({
     captureSite: z.boolean().default(true),
     dryRun: z.boolean().default(false),
-    force: z.boolean().default(false),
     launchPack: LaunchPackSchema.optional(),
     renderDeck: z.literal(false).optional(),
     renderVideo: z.literal(true),

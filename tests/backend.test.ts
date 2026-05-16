@@ -1203,6 +1203,7 @@ describe("local backend flow", () => {
   });
 
   it("allows public video render requests to carry the launch pack for serverless fallback", async () => {
+    vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
     const service = await import("../lib/launch-pack-service");
     const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
     const created = await service.createLaunchPack({
@@ -1218,7 +1219,27 @@ describe("local backend flow", () => {
       id: "fallback-pack",
     };
 
-    const forcedResponse = await render(
+    const fallbackDryRunResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/fallback-pack/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: true,
+          launchPack: fallbackPack,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "fallback-pack" }) },
+    );
+    const fallbackDryRunBody = await fallbackDryRunResponse.json();
+
+    expect(fallbackDryRunResponse.status).toBe(200);
+    expect(fallbackDryRunBody.enabled).toBe(true);
+    expect(fallbackDryRunBody.videoUrl).toBe("/api/launch-packs/fallback-pack/video");
+
+    const forceResponse = await render(
       new Request("https://proofpitch.test/api/launch-packs/fallback-pack/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1233,11 +1254,8 @@ describe("local backend flow", () => {
       }),
       { params: Promise.resolve({ id: "fallback-pack" }) },
     );
-    const forcedBody = await forcedResponse.json();
 
-    expect(forcedResponse.status).toBe(200);
-    expect(forcedBody.enabled).toBe(true);
-    expect(forcedBody.videoUrl).toBe("/api/launch-packs/fallback-pack/video");
+    expect(forceResponse.status).toBe(400);
 
     const fallbackResponse = await render(
       new Request("https://proofpitch.test/api/launch-packs/missing/render", {

@@ -93,7 +93,6 @@ export async function POST(request: Request, context: RouteContext) {
       demoVideo: launchPack.demoVideo,
       captureSite: input.captureSite,
       dryRun: input.dryRun,
-      force: input.force,
       renderDeck: false,
       renderVideo: true,
     });

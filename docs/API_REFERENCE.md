@@ -147,6 +147,7 @@ Behavior:
 - Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`.
 - Product-site capture is controlled by `PROOFPITCH_PLAYWRIGHT_CAPTURE`.
 - Public video render requests prefer server-side lookup, but may include a full `launchPack` fallback when local serverless storage cannot find the id.
+- Public video render requests cannot set `force`; local rendering remains controlled only by server environment.
 - If Supabase admin env vars are configured, a ready MP4 is uploaded to the private `proofpitch-exports` bucket and returned as a signed URL.
 - When a video render finishes, `demoVideo` and `socialDrafts` are refreshed before the response is returned.
 
