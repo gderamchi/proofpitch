@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const renderRouteIncludes = [
   "./node_modules/@esbuild/**/*",
+  "./node_modules/@jridgewell/**/*",
   "./node_modules/@mediabunny/**/*",
+  "./node_modules/@module-federation/**/*",
   "./node_modules/@remotion/bundler/**/*",
   "./node_modules/@remotion/compositor-linux-x64-gnu/**/*",
   "./node_modules/@remotion/licensing/**/*",
@@ -19,6 +21,8 @@ const renderRouteIncludes = [
   "./node_modules/@remotion/zod-types/**/*",
   "./node_modules/@rspack/binding/**/*",
   "./node_modules/@rspack/binding-linux-x64-gnu/**/*",
+  "./node_modules/@webassemblyjs/**/*",
+  "./node_modules/@xtuc/**/*",
   "./node_modules/mediabunny/**/*",
   "./node_modules/remotion/**/*",
   "./remotion/**/*",
