@@ -95,10 +95,20 @@ export async function POST(request: Request, context: RouteContext) {
       renderVideo: true,
     });
     const videoArtifact = result.artifacts.find((artifact) => artifact.type === "video" && artifact.status === "ready");
-    const uploadedVideoUrl = videoArtifact ? await uploadRenderedVideo(id, videoArtifact.path) : null;
+    let uploadedVideoUrl: string | null = null;
+    let uploadError: string | undefined;
+
+    if (videoArtifact) {
+      try {
+        uploadedVideoUrl = await uploadRenderedVideo(id, videoArtifact.path);
+      } catch (error) {
+        uploadError = error instanceof Error ? error.message : "Video rendered locally, but upload failed.";
+      }
+    }
 
     return NextResponse.json({
       ...result,
+      uploadError,
       videoUrl: uploadedVideoUrl ?? result.videoUrl,
     });
   } catch (error) {

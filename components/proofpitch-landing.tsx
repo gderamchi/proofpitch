@@ -12,7 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { renderPitchPackMarkdown } from "@/lib/markdown-export";
 import type { DeckMode, DeckSlideSpec, LaunchPack } from "@/lib/schemas";
@@ -53,12 +53,15 @@ type RenderDeckResponse = {
 };
 
 type RenderVideoResponse = {
+  enabled?: boolean;
   error?: string;
   detail?: string;
+  uploadError?: string;
   videoUrl?: string;
   artifacts?: Array<{
     type?: string;
     status?: string;
+    error?: string;
   }>;
 };
 
@@ -434,10 +437,8 @@ function OutputPreview({
   acceptedClaimIds,
   renderMessage,
   onToggleClaim,
-  onApproveOutline,
   onRenderDeck,
   onCopy,
-  onRenderVideo,
   isRenderingVideo,
   renderState,
 }: {
@@ -448,10 +449,8 @@ function OutputPreview({
   acceptedClaimIds: string[];
   renderMessage: string | null;
   onToggleClaim: (claimId: string) => void;
-  onApproveOutline: () => Promise<void>;
   onRenderDeck: () => Promise<void>;
   onCopy: (text: string) => Promise<void>;
-  onRenderVideo: () => Promise<void>;
   isRenderingVideo: boolean;
   renderState: string | null;
 }) {
@@ -563,17 +562,12 @@ function OutputPreview({
       ) : (
         <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
           <p className="text-sm leading-6 text-stone-700">
-            Let the demo agent handle consent, follow your path instructions, then assemble the walkthrough as a Remotion MP4.
+            The demo agent starts automatically: it handles consent, follows your path instructions, then assembles a Remotion MP4.
           </p>
-          <button
-            type="button"
-            onClick={() => void onRenderVideo()}
-            disabled={isRenderingVideo}
-            className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-            {isRenderingVideo ? "Rendering video" : "Render demo video"}
-          </button>
+          <p className="inline-flex w-fit items-center gap-2 border border-teal-900 bg-white px-4 py-2 text-sm font-semibold text-teal-950">
+            {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {isRenderingVideo ? "Rendering demo video" : renderState ?? "Demo video queued"}
+          </p>
           {renderState ? <p className="text-sm font-medium text-teal-800">{renderState}</p> : null}
         </div>
       )}
@@ -588,8 +582,12 @@ function OutputPreview({
       {!outlineReady ? (
         <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
           <div>
-            <p className="text-sm font-semibold text-stone-950">Approve claims for the deck</p>
-            <p className="mt-1 text-xs leading-5 text-stone-600">Unsupported claims stay excluded from Slidev.</p>
+            <p className="text-sm font-semibold text-stone-950">
+              {isApproving ? "Generating deck outline" : "Deck outline queued"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-stone-600">
+              Supported claims are selected automatically; unsupported claims stay excluded from Slidev.
+            </p>
           </div>
           <div className="grid gap-2">
             {launchPack.pitchPack.claims.map((claim) => {
@@ -619,15 +617,10 @@ function OutputPreview({
               );
             })}
           </div>
-          <button
-            type="button"
-            onClick={onApproveOutline}
-            disabled={!canApprove || isApproving}
-            className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isApproving ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-            Generate outline
-          </button>
+          <p className="inline-flex w-fit items-center gap-2 border border-teal-900 bg-white px-4 py-3 text-sm font-semibold text-teal-950">
+            {isApproving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {canApprove ? "Outline is being prepared" : "Waiting for an accepted claim"}
+          </p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -748,6 +741,163 @@ export function ProofPitchLanding() {
   const [renderMessage, setRenderMessage] = useState<string | null>(null);
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [videoRenderMessage, setVideoRenderMessage] = useState<string | null>(null);
+  const activeAutomationId = useRef<string | null>(null);
+
+  function isActiveLaunchPack(launchPackId: string) {
+    return activeAutomationId.current === launchPackId;
+  }
+
+  function mergeLaunchPackUpdate(current: LaunchPack | null, next: LaunchPack) {
+    if (!current) {
+      return next;
+    }
+
+    if (current.id !== next.id) {
+      return current;
+    }
+
+    return {
+      ...next,
+      demoVideo: current.demoVideo.url && !next.demoVideo.url ? current.demoVideo : next.demoVideo,
+    };
+  }
+
+  async function approveOutlineForPack(launchPack: LaunchPack, claimIds: string[]) {
+    if (!isActiveLaunchPack(launchPack.id)) {
+      return launchPack;
+    }
+
+    if (!claimIds.length || launchPack.pitchDeck.outline.status === "ready") {
+      return launchPack;
+    }
+
+    setIsApproving(true);
+    setError(null);
+    setRenderMessage(null);
+    setVideoRenderMessage((current) => current ?? "Preparing deck outline...");
+
+    try {
+      const response = await fetch(`/api/launch-packs/${launchPack.id}/outline`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ acceptedClaimIds: claimIds, launchPack }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail ?? data?.error ?? "Deck outline approval failed.");
+      }
+
+      const approved = data as LaunchPack;
+      setResult((current) => mergeLaunchPackUpdate(current, approved));
+
+      return approved;
+    } catch (outlineError) {
+      if (isActiveLaunchPack(launchPack.id)) {
+        setError(outlineError instanceof Error ? outlineError.message : "Deck outline approval failed.");
+      }
+
+      return launchPack;
+    } finally {
+      if (isActiveLaunchPack(launchPack.id)) {
+        setIsApproving(false);
+      }
+    }
+  }
+
+  async function renderDemoVideoForPack(launchPack: LaunchPack) {
+    if (!isActiveLaunchPack(launchPack.id)) {
+      return;
+    }
+
+    if (launchPack.demoVideo.url) {
+      return;
+    }
+
+    setIsRenderingVideo(true);
+    setVideoRenderMessage("Capturing the site and rendering with Remotion...");
+    setError(null);
+    setRenderMessage(null);
+
+    try {
+      const response = await fetch(`/api/launch-packs/${launchPack.id}/render`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          captureSite: true,
+          dryRun: false,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      });
+      const data = (await response.json()) as RenderVideoResponse;
+
+      if (!response.ok || data.error) {
+        throw new Error(data.detail ?? data.error ?? "Video render failed.");
+      }
+
+      if (data.enabled === false) {
+        throw new Error(
+          "Video rendering is disabled. Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 and restart the dev server.",
+        );
+      }
+
+      const videoArtifact = Array.isArray(data.artifacts)
+        ? data.artifacts.find((artifact: { type?: string }) => artifact.type === "video")
+        : null;
+
+      if (!videoArtifact || videoArtifact.status !== "ready") {
+        throw new Error(videoArtifact?.error ?? "Video render did not finish.");
+      }
+
+      const videoUrl = `${data.videoUrl ?? `/api/launch-packs/${launchPack.id}/video`}?v=${Date.now()}`;
+
+      setResult((current) => {
+        if (!current || current.id !== launchPack.id) {
+          return current;
+        }
+
+        return {
+          ...current,
+          demoVideo: {
+            ...current.demoVideo,
+            status: "ready",
+            durationSeconds: 120,
+            uploadStatus: data.uploadError ? "manual_upload_required" : "not_required",
+            url: videoUrl,
+            error: undefined,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (isActiveLaunchPack(launchPack.id)) {
+        setVideoRenderMessage(
+          data.uploadError ? "Demo video rendered locally. Cloud upload skipped." : "Demo video rendered.",
+        );
+      }
+    } catch (renderError) {
+      const message = renderError instanceof Error ? renderError.message : "Video render failed.";
+
+      if (isActiveLaunchPack(launchPack.id)) {
+        setError(message);
+        setVideoRenderMessage(null);
+      }
+    } finally {
+      if (isActiveLaunchPack(launchPack.id)) {
+        setIsRenderingVideo(false);
+      }
+    }
+  }
+
+  async function completeLaunchPackAutomatically(launchPack: LaunchPack, claimIds: string[]) {
+    const approved = await approveOutlineForPack(launchPack, claimIds);
+
+    await renderDemoVideoForPack(approved);
+  }
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -780,8 +930,12 @@ export function ProofPitchLanding() {
       }
 
       const launchPack = data as LaunchPack;
+      const initialAcceptedClaimIds = launchPack.claimReview.acceptedClaimIds;
+
+      activeAutomationId.current = launchPack.id;
       setResult(launchPack);
-      setAcceptedClaimIds(launchPack.claimReview.acceptedClaimIds);
+      setAcceptedClaimIds(initialAcceptedClaimIds);
+      void completeLaunchPackAutomatically(launchPack, initialAcceptedClaimIds);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : "Release pack generation failed.");
     } finally {
@@ -799,38 +953,6 @@ export function ProofPitchLanding() {
     setAcceptedClaimIds((current) =>
       current.includes(claimId) ? current.filter((id) => id !== claimId) : [...current, claimId],
     );
-  }
-
-  async function approveOutline() {
-    if (!result) {
-      return;
-    }
-
-    setIsApproving(true);
-    setError(null);
-    setRenderMessage(null);
-    setVideoRenderMessage(null);
-
-    try {
-      const response = await fetch(`/api/launch-packs/${result.id}/outline`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ acceptedClaimIds, launchPack: result }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.detail ?? data?.error ?? "Deck outline approval failed.");
-      }
-
-      setResult(data as LaunchPack);
-    } catch (outlineError) {
-      setError(outlineError instanceof Error ? outlineError.message : "Deck outline approval failed.");
-    } finally {
-      setIsApproving(false);
-    }
   }
 
   async function renderDeck() {
@@ -877,68 +999,6 @@ export function ProofPitchLanding() {
       setRenderMessage(renderError instanceof Error ? renderError.message : "PDF render failed.");
     } finally {
       setIsRendering(false);
-    }
-  }
-
-  async function renderDemoVideo() {
-    if (!result) {
-      return;
-    }
-
-    setIsRenderingVideo(true);
-    setVideoRenderMessage("Capturing the site and rendering with Remotion...");
-    setError(null);
-    setRenderMessage(null);
-
-    try {
-      const response = await fetch(`/api/launch-packs/${result.id}/render`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          captureSite: true,
-          dryRun: false,
-          renderDeck: false,
-          renderVideo: true,
-        }),
-      });
-      const data = (await response.json()) as RenderVideoResponse;
-
-      if (!response.ok || data.error) {
-        throw new Error(data.detail ?? data.error ?? "Video render failed.");
-      }
-
-      const videoArtifact = Array.isArray(data.artifacts)
-        ? data.artifacts.find((artifact: { type?: string }) => artifact.type === "video")
-        : null;
-
-      if (!videoArtifact || videoArtifact.status !== "ready") {
-        throw new Error(data.error ?? "Video render did not finish.");
-      }
-
-      const videoUrl = `${data.videoUrl ?? `/api/launch-packs/${result.id}/video`}?v=${Date.now()}`;
-
-      setResult({
-        ...result,
-        demoVideo: {
-          ...result.demoVideo,
-          status: "ready",
-          durationSeconds: 120,
-          uploadStatus: "not_required",
-          url: videoUrl,
-          error: undefined,
-        },
-        updatedAt: new Date().toISOString(),
-      });
-      setVideoRenderMessage("Demo video rendered.");
-    } catch (renderError) {
-      const message = renderError instanceof Error ? renderError.message : "Video render failed.";
-
-      setError(message);
-      setVideoRenderMessage(null);
-    } finally {
-      setIsRenderingVideo(false);
     }
   }
 
@@ -1068,10 +1128,8 @@ export function ProofPitchLanding() {
           acceptedClaimIds={acceptedClaimIds}
           renderMessage={renderMessage}
           onToggleClaim={toggleClaim}
-          onApproveOutline={approveOutline}
           onRenderDeck={renderDeck}
           onCopy={copyText}
-          onRenderVideo={renderDemoVideo}
           isRenderingVideo={isRenderingVideo}
           renderState={videoRenderMessage}
         />

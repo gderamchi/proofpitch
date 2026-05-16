@@ -406,8 +406,8 @@ describe("backend contracts", () => {
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
       targetAudience: "Founder-led B2B teams",
-      launchGoal: "Release with a pitch deck and product demo video",
-      demoInstructions: "Show the claim ledger and the product workflow.",
+      launchGoal: "Prepare a customer-call demo and concise deck.",
+      demoInstructions: "Accept cookies if needed, click Pricing, scroll down, then click Enterprise.",
       deckMode: "sales" as const,
     };
 
@@ -434,10 +434,14 @@ describe("backend contracts", () => {
     expect(outline.deckMode).toBe("sales");
     expect(outline.acceptedClaimIds).toEqual(["claim-1"]);
     expect(outline.slides.map((slide) => slide.title)).toContain("Proof Ledger");
+    expect(outline.slides.map((slide) => slide.title)).toContain("Audience And Buying Moment");
     expect(outline.slides.find((slide) => slide.id === "product-demo")?.visual).toMatchObject({
       kind: "screenshot",
       url: "https://assets.test/workflow.png",
     });
+    expect(JSON.stringify(outline.slides)).not.toContain("Goal:");
+    expect(JSON.stringify(outline.slides)).not.toContain(input.launchGoal);
+    expect(JSON.stringify(outline.slides)).not.toContain(input.demoInstructions);
     expect(outline.slides.flatMap((slide) => slide.claimIds)).toEqual(["claim-1"]);
     expect(JSON.stringify(outline)).not.toContain("40%");
     expect(compiled.markdown).toContain("theme: default");

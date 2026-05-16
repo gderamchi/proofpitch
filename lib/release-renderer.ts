@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { captureWebsiteScreenshots } from "./demo-video-capture";
@@ -119,6 +119,16 @@ async function runCommand(command: string, args: string[]) {
       reject(new Error(stderr.trim() || `${command} exited with code ${code}`));
     });
   });
+}
+
+async function hasRenderedFile(filePath: string) {
+  try {
+    const file = await stat(filePath);
+
+    return file.isFile() && file.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function withCapturedScreenshots(
@@ -273,12 +283,13 @@ export async function renderReleaseArtifacts({
 
   try {
     await mkdir(outputDir, { recursive: true });
+    const existingVideoReady = shouldRenderVideo && !force && (await hasRenderedFile(videoPath));
 
     if (shouldRenderDeck) {
       await writeFile(deckPath, pitchDeck.markdown, "utf8");
     }
 
-    if (shouldRenderVideo) {
+    if (shouldRenderVideo && !existingVideoReady) {
       const renderProps = await withCapturedScreenshots(
         launchPackId,
         outputDir,
@@ -304,7 +315,13 @@ export async function renderReleaseArtifacts({
       };
     }
 
-    if (shouldRenderVideo) {
+    if (shouldRenderVideo && existingVideoReady) {
+      const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
+      artifacts[videoArtifactIndex] = {
+        ...artifacts[videoArtifactIndex],
+        status: "ready",
+      };
+    } else if (shouldRenderVideo) {
       await runCommand(process.execPath, remotionArgs);
       const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
       artifacts[videoArtifactIndex] = {

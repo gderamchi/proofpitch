@@ -91,6 +91,39 @@ function sourceLabel(claim: Claim) {
   return `${claim.text} (${status}; ${source})`;
 }
 
+function audienceBuyingMoment(input: DeckSpecInput, pitchPack: PitchPack, mode: (typeof modeCopy)[DeckMode]) {
+  return bulletList([
+    `Built for ${input.targetAudience.replace(/[.]+$/g, "")}.`,
+    `Buying tension: ${compact(pitchPack.problem, 180)}`,
+    `Deck job: ${mode.outcome}`,
+  ]);
+}
+
+function productDemoStory({
+  acceptedClaims,
+  input,
+  pitchPack,
+  screenshots,
+}: {
+  acceptedClaims: Claim[];
+  input: DeckSpecInput;
+  pitchPack: PitchPack;
+  screenshots: LaunchScreenshot[];
+}) {
+  const screenshot = screenshotForSlide(screenshots, 1);
+  const proofMoment = acceptedClaims[0]?.text ?? pitchPack.oneLiner;
+  const productSurface = screenshot?.title ? `Use the captured ${screenshot.title} surface as the proof moment.` : undefined;
+
+  return bulletList(
+    [
+      `Open on the buyer problem: ${compact(pitchPack.problem, 170)}`,
+      `Show how ${input.productName} changes the workflow: ${compact(pitchPack.solution, 190)}`,
+      `Pause on the proof moment: ${compact(proofMoment, 180)}`,
+      productSurface ?? `Close by tying the product outcome back to ${input.targetAudience}.`,
+    ].filter((item): item is string => Boolean(item)),
+  );
+}
+
 function visual(
   kind: DeckSlideVisual["kind"],
   title: string,
@@ -176,16 +209,12 @@ export function buildDeckSpec({
       },
       {
         id: "audience-goal",
-        title: "Audience And Goal",
+        title: "Audience And Buying Moment",
         layout: "section",
-        body: bulletList([
-          `Audience: ${input.targetAudience}`,
-          `Goal: ${input.launchGoal}`,
-          `Deck mode: ${mode.label}`,
-        ]),
+        body: audienceBuyingMoment(input, pitchPack, mode),
         claimIds: [],
-        notes: "Anchor the deck in the user's target audience and the requested outcome.",
-        visual: visual("statement", "Audience focus", `${input.targetAudience} -> ${input.launchGoal}`),
+        notes: "Anchor the deck in the buyer context and the job this deck needs to do.",
+        visual: visual("statement", "Audience focus", `${input.targetAudience} buyer case`),
       },
       {
         id: "problem",
@@ -223,13 +252,10 @@ export function buildDeckSpec({
         id: "product-demo",
         title: "Product Demo",
         layout: "demo",
-        body: bulletList([
-          input.demoInstructions || "Show the first meaningful public product workflow.",
-          ...pitchPack.liveDemoSteps.slice(0, 4),
-        ]),
+        body: productDemoStory({ acceptedClaims, input, pitchPack, screenshots }),
         claimIds: [],
-        notes: "Use the actual product path as the proof moment; do not replace the demo with slides.",
-        visual: visual("screenshot", screenshotForSlide(screenshots, 1)?.title ?? "Product surface", "Use captured product screens when the worker can capture them; otherwise keep the URL reference visible.", screenshotForSlide(screenshots, 1)),
+        notes: "Use this slide to frame the product moment at a high level; the video handles the actual navigation path.",
+        visual: visual("screenshot", screenshotForSlide(screenshots, 1)?.title ?? "Product surface", "Anchor the story in the real product surface.", screenshotForSlide(screenshots, 1)),
       },
       {
         id: "risks",
