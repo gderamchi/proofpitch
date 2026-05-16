@@ -1,25 +1,41 @@
 # ProofPitch
 
-ProofPitch is an MVP for one workflow:
+Public repository: [github.com/gderamchi/proofpitch](https://github.com/gderamchi/proofpitch)
+
+ProofPitch is a source-backed pitch-pack generator for one focused workflow:
 
 ```text
-product URL + short context -> product demo video state + separate pitch deck + claim ledger
+product URL + short context + deck mode -> claim review -> visual Slidev preview + Remotion demo video render -> PDF/render state
 ```
 
-The app deliberately keeps the deck and product demo separate. The API can return `demoVideo.status: "pending"` first, then the UI can render a real Remotion MP4 by capturing the submitted site URL with Playwright screenshots.
+The app deliberately keeps the pitch deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. The demo video path captures the submitted product URL with Playwright screenshots and renders a Remotion MP4 when local rendering is enabled. If capture is disabled or blocked, the API returns an explicit pending or blocked demo-video state instead of pretending that a slide render is a product demo.
+
+## Repository Status
+
+- Source code is public on GitHub at `gderamchi/proofpitch`.
+- The runtime is a Next.js 16 App Router application with TypeScript route handlers under `app/api`.
+- The MVP runs in free-access mode: login, signup, checkout, plan quotas, and one-shot credits are not required for the core launch-pack workflow.
+- Supabase, Stripe, Tavily, Pioneer, and local rendering are optional integrations. Missing provider keys produce documented fallback or disabled states instead of blank UI.
+- This docs pass does not add a license file. Redistribution terms should be confirmed separately before packaging this as a licensed open-source project.
 
 ## MVP Scope
 
-- Compact landing page with product URL, product name, audience, goal, optional demo instructions, and one generate CTA.
+- Compact landing page with product URL, product name, audience, goal, optional demo instructions, deck mode, claim review, outline approval, and visual slide preview.
+- `DeckMode` values: `investor`, `sales`, and `launch`.
 - `LaunchPack` output with `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, and checklist.
+- `pitchDeck` starts pending, then stores a validated `DeckOutline`, deterministic Slidev markdown, render state, and PDF export metadata after approval/render.
+- Approved decks render as navigable 16:9 slide previews with thumbnail selection, product screenshot cues when available, Slidev Markdown download, and PDF download when the render artifact is ready.
 - `PitchPack` output with reusable pitch copy, demo steps, claim ledger, risks, next steps, and provider usage.
 - Providers in the public contract: OpenAI, Tavily, and Pioneer.
-- Tavily supplies research sources for proof-backed claims.
-- Pioneer extracts entities and claim risk from nested `raw.result.data.entities` and `claim_risk`.
 
 Out of MVP scope: generated hero media, channel drafts, publishing metadata, and commercial UI.
 
-## Local Setup
+## Quick Start
+
+Prerequisites:
+
+- Node.js 20.9 or newer, matching the Next.js 16 requirement.
+- npm, using the committed `package-lock.json`.
 
 ```bash
 npm install
@@ -27,19 +43,90 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Required for live structured generation:
+Open [http://localhost:3000](http://localhost:3000).
+
+The app can run locally without provider keys. In that mode it uses deterministic fallback data and marks provider states as missing or fallback. Add provider keys when you want live structured generation and proof sourcing.
+
+## Environment Variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Required for live generation | Enables OpenAI Responses API structured `PitchPack` synthesis. |
+| `OPENAI_MODEL` | Required for live generation | Model used by `lib/openai.ts`; defaults are documented in `.env.example`. |
+| `TAVILY_API_KEY` | Optional | Enables Tavily web research and source snippets for proof-backed claims. |
+| `PIONEER_API_KEY` | Optional | Enables Pioneer entity extraction and claim-risk classification. |
+| `PIONEER_MODEL_ID` | Optional | Pioneer model id, defaulting to `fastino/gliner2-base-v1` in `.env.example`. |
+| `GRADIUM_API_KEY` | Optional | Enables Gradium voiceover narration for locally rendered Remotion demo videos. |
+| `GRADIUM_VOICE_ID` | Optional | Gradium voice id; defaults to an English voice when omitted. |
+| `FAL_KEY` | Planned | Reserved for future generated-media work; not required for the MVP flow. |
+| `PROOFPITCH_PLAYWRIGHT_CAPTURE` | Optional | Enables product-site capture through Playwright when set to `1`. |
+| `PROOFPITCH_ENABLE_LOCAL_RENDER` | Optional | Enables local Slidev/Remotion rendering when set to `1`. |
+| `PROOFPITCH_RELEASE_ASSET_DIR` | Optional | Directory for generated local artifacts, defaulting to `.proofpitch/release-assets`. |
+| `NEXT_PUBLIC_SITE_URL` | Optional | Public site origin for generated links. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Optional | Supabase project URL for persistence/auth. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Supabase browser/client key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Supabase admin key for server persistence and private export storage. |
+| `STRIPE_SECRET_KEY` | Parked | Stripe support exists for future billing, but checkout is disabled in MVP free-access mode. |
+| `STRIPE_WEBHOOK_SECRET` | Parked | Used only by the Stripe webhook route when billing is re-enabled. |
+| `STRIPE_*_PRICE_ID` | Parked | Future plan price IDs, documented in `docs/BUSINESS_PLAN.md`. |
+| `BILLING_MODE` | Optional | Currently expected to stay `manual`. |
+
+Never commit real `.env.local` files. The repository intentionally tracks only `.env.example`.
+
+## Main Scripts
 
 ```bash
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5.5
+npm run dev
+npm test
+npm run lint
+npm run build
+npm run release:render:local
+npm run release:deck:export
+npm run release:video:studio
+npm run release:video:render
 ```
 
-Optional proof providers:
+- `dev`: starts the Next.js development server.
+- `test`: runs Vitest coverage for backend services, schemas, persistence fallback, and render contracts.
+- `lint`: runs ESLint.
+- `build`: runs the Next.js production build and type generation.
+- `release:render:local`: renders configured local release artifacts through `scripts/render-release-artifacts.mjs`.
+- `release:deck:export`: exports a generated Slidev deck PDF from `.proofpitch/release-assets/latest/pitch-deck.md`.
+- `release:video:studio` and `release:video:render`: inspect or render the Remotion `ProofPitchProductDemo` composition.
 
-```bash
-TAVILY_API_KEY=
-PIONEER_API_KEY=
-PIONEER_MODEL_ID=fastino/gliner2-base-v1
+## Architecture At A Glance
+
+ProofPitch is organized as a small App Router application:
+
+- `app/page.tsx` renders the landing/generator surface.
+- `components/proofpitch-landing.tsx` owns the client-side launch-pack workflow.
+- `app/api/**/route.ts` contains the JSON and artifact API routes.
+- `lib/schemas.ts` defines the Zod request and response contracts.
+- `lib/launch-pack-service.ts` builds launch packs, claim review, deck outlines, and local persistence updates.
+- `lib/deck-spec.ts` compiles approved claims into deterministic Slidev markdown.
+- `lib/pitch-pack-service.ts` handles provider-backed and fallback pitch-pack generation.
+- `lib/openai.ts`, `lib/tavily.ts`, and `lib/pioneer.ts` isolate external provider adapters.
+- `lib/release-renderer.ts`, `lib/release-assets.ts`, `lib/demo-video-capture.ts`, and `remotion/` handle artifact rendering.
+- `lib/local-store.ts` keeps the MVP usable when Supabase is not configured.
+- `supabase/migrations/` contains the optional persistence schema and RLS policies.
+
+More detail:
+
+- [Architecture and toolchain](docs/ARCHITECTURE.md)
+- [API reference](docs/API_REFERENCE.md)
+- [Jury evaluation guide](docs/EVALUATION_GUIDE.md)
+- [Technical requirements](docs/TECHNICAL_REQUIREMENTS.md)
+- [Product requirements](docs/PRD.md)
+- [Business plan](docs/BUSINESS_PLAN.md)
+- [Market analysis](docs/MARKET_ANALYSIS.md)
+- [Launch roadmap](docs/LAUNCH_ROADMAP.md)
+
+## API Summary
+
+The primary route is:
+
+```http
+POST /api/launch-packs
 ```
 
 Optional product capture and local rendering:
@@ -82,56 +169,94 @@ Request:
   "companyDescription": "ProofPitch helps founder-led teams turn a product URL into a credible sales walkthrough, pitch deck, and claim ledger.",
   "targetAudience": "Founder-led B2B teams",
   "launchGoal": "Prepare a customer-call demo and concise deck.",
-  "demoInstructions": "Accept cookies if needed, search pricing, then scroll to the CTA."
+  "demoInstructions": "Accept cookies if needed, search pricing, then scroll to the CTA.",
+  "deckMode": "sales"
 }
 ```
 
-Response shape:
+Representative response:
 
 ```json
 {
   "id": "launch-id",
-  "status": "completed",
-  "pitchDeck": { "status": "ready", "format": "slidev" },
-  "demoVideo": { "status": "pending", "uploadStatus": "blocked_by_provider_review" },
-  "pitchPack": { "projectName": "ProofPitch", "claims": [] },
+  "status": "running",
+  "deckMode": "sales",
+  "claimReview": {
+    "status": "pending",
+    "acceptedClaimIds": ["claim-1"],
+    "rejectedClaimIds": ["claim-2"]
+  },
+  "pitchDeck": {
+    "status": "pending",
+    "format": "slidev",
+    "renderState": "queued"
+  },
+  "demoVideo": {
+    "status": "pending",
+    "uploadStatus": "blocked_by_provider_review"
+  },
+  "pitchPack": {
+    "projectName": "ProofPitch",
+    "claims": []
+  },
   "providers": {
-    "openai": { "state": "used" },
-    "tavily": { "state": "used" },
-    "pioneer": { "state": "used" }
+    "openai": { "state": "used", "detail": "Structured generation completed." },
+    "tavily": { "state": "used", "detail": "Research completed." },
+    "pioneer": { "state": "used", "detail": "Extraction completed." }
   }
 }
 ```
 
-`demoVideo.status` becomes `ready` when product walkthrough capture or the Remotion render action produced a real video path. Otherwise it is explicitly pending or blocked.
+Claim approval and render routes:
 
-### `POST /api/generate-pitch-pack`
+- `POST /api/launch-packs/:id/outline` approves selected claims and creates the deterministic deck outline plus Slidev markdown.
+- `POST /api/launch-packs/:id/render` starts deck or demo-video rendering. It does not require sign-in. When local rendering is disabled, it reports `render.enabled: false`.
+- `GET /api/launch-packs/:id/video` serves a rendered local MP4.
+- `GET /api/launch-packs/:id/recording` serves the intermediate browser recording when available.
 
-Generates the underlying `PitchPack` from raw context and optional project URL.
+See [docs/API_REFERENCE.md](docs/API_REFERENCE.md) for every route, including pitch packs, provider helpers, auth, usage, projects, health, and parked billing endpoints.
 
-### `POST /api/tavily`
+## Provider Strategy
 
-Runs Tavily research when `TAVILY_API_KEY` is configured.
+ProofPitch uses three providers because the MVP needs separate jobs for research, extraction, and synthesis:
 
-### `POST /api/pioneer-extract`
+- OpenAI is the structured synthesis layer. It receives user context plus optional Tavily and Pioneer context, then must return a strict `PitchPack` JSON shape. It is not treated as an independent evidence source.
+- Tavily is the research layer. It provides source titles, URLs, snippets, scores, and usage credits so claims can cite external context instead of fabricated proof.
+- Pioneer is the extraction layer. It pulls project, product, technology, metric, user, problem, and claim entities plus `claim_risk`. The adapter supports nested responses at `raw.result.data.entities` and `raw.result.data.claim_risk`.
 
-Runs Pioneer entity and claim-risk extraction when `PIONEER_API_KEY` is configured.
+Every generation returns provider status for OpenAI, Tavily, and Pioneer. Missing or failed providers are represented explicitly and sanitized before returning or persisting errors.
 
-### `GET /api/health`
+Runtime modes:
 
-Reports OpenAI, Tavily, Pioneer, Supabase, and billing health. Billing and Supabase remain infrastructure concerns; they are not part of the landing-page MVP flow.
+- `live`: OpenAI ran and at least one proof provider also ran.
+- `partial`: OpenAI ran, but Tavily and Pioneer did not run.
+- `demo`: OpenAI did not produce the pack, so the deterministic fallback was used.
 
 ## Verification
 
+Run these before considering a change ready:
+
 ```bash
+git diff --check
 npm test
+npm run lint
 npm run build
 ```
 
-For visual checks:
+For frontend changes, also run:
 
 ```bash
 npm run dev
 ```
 
-Open `/` at desktop and mobile widths. The first screen should stay focused on the generator and should not show commercial, audio, generated-media, or publishing copy.
+Then inspect `/` at desktop and mobile widths. The first screen should stay focused on the generator and should not show commercial, audio, generated-media, or publishing copy.
+
+## Deployment
+
+The repository is linked to a Vercel project through `.vercel/project.json`. Production deployment is expected at the end of completed tasks in this repo:
+
+```bash
+vercel --prod
+```
+
+After deployment, verify the public app and `/api/health`. Missing Vercel credentials, project access, or environment variables should be reported as deployment blockers rather than hidden behind local-only success.

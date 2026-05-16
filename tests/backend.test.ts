@@ -206,6 +206,7 @@ class MockSupabaseAdmin {
     provider_runs: [] as Array<Record<string, unknown>>,
     exports: [] as Array<Record<string, unknown>>,
     usage_counters: [] as Array<Record<string, unknown>>,
+    launch_packs: [] as Array<Record<string, unknown>>,
   };
 
   uploads: Array<{ bucket: string; path: string }> = [];
@@ -392,14 +393,103 @@ beforeEach(() => {
   stripeState.webhookConstructions = [];
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
-  vi.stubEnv("PROOFPITCH_LOCAL_DEMO_PACK_LIMIT", "1");
-  process.env.PROOFPITCH_LOCAL_DEMO_PACK_LIMIT = "1";
   (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
     undefined;
   vi.resetModules();
 });
 
 describe("backend contracts", () => {
+  it("builds a deterministic deck spec from accepted claims and compiles safe Slidev markdown", async () => {
+    const { buildDeckSpec, buildSlidevMarkdownFromDeckSpec } = await import("../lib/deck-spec");
+    const pitchPack = buildPitchPack();
+    const input = {
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales" as const,
+    };
+
+    const outline = buildDeckSpec({
+      input,
+      pitchPack,
+      acceptedClaimIds: ["claim-1"],
+      screenshots: [
+        {
+          id: "shot-demo",
+          title: "ProofPitch product workflow",
+          url: "https://assets.test/workflow.png",
+          alt: "ProofPitch product workflow screenshot",
+        },
+      ],
+    });
+    const compiled = buildSlidevMarkdownFromDeckSpec({
+      input,
+      outline,
+      pitchPack,
+    });
+
+    expect(outline.status).toBe("ready");
+    expect(outline.deckMode).toBe("sales");
+    expect(outline.acceptedClaimIds).toEqual(["claim-1"]);
+    expect(outline.slides.map((slide) => slide.title)).toContain("Proof Ledger");
+    expect(outline.slides.find((slide) => slide.id === "product-demo")?.visual).toMatchObject({
+      kind: "screenshot",
+      url: "https://assets.test/workflow.png",
+    });
+    expect(outline.slides.flatMap((slide) => slide.claimIds)).toEqual(["claim-1"]);
+    expect(JSON.stringify(outline)).not.toContain("40%");
+    expect(compiled.markdown).toContain("theme: default");
+    expect(compiled.markdown).toContain("---");
+    expect(compiled.markdown).toContain("<!--");
+    expect(compiled.markdown).toContain("https://assets.test/workflow.png");
+    expect(compiled.markdown).toContain("ProofPitch creates a claim ledger.");
+    expect(compiled.markdown).not.toContain("improves conversion by 40%");
+    expect(compiled.slideCount).toBe(outline.slides.length);
+  });
+
+  it("keeps dense proof-ledger slides inside the deck schema limit", async () => {
+    const { buildDeckSpec, buildSlidevMarkdownFromDeckSpec } = await import("../lib/deck-spec");
+    const pitchPack = buildPitchPack();
+    const input = {
+      sourceUrl: "https://example.com",
+      productName: "ProofPitch",
+      targetAudience: "Founder-led B2B teams",
+      launchGoal: "Release with a pitch deck and product demo video",
+      demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales" as const,
+    };
+
+    pitchPack.claims = Array.from({ length: 16 }, (_, index) => ({
+      id: `claim-${index + 1}`,
+      text: `ProofPitch evidence claim ${index + 1} has enough detail to resemble verbose provider output from a real product website, including the buyer context, source framing, and qualification notes.`,
+      status: "supported",
+      sourceType: "web",
+      sourceTitle: "Provider research",
+      sourceUrl: "https://example.com",
+      explanation: "Provider research supported this claim.",
+    }));
+
+    const acceptedClaimIds = pitchPack.claims.map((claim) => claim.id);
+    const outline = buildDeckSpec({
+      input,
+      pitchPack,
+      acceptedClaimIds,
+    });
+    const proofSlide = outline.slides.find((slide) => slide.id === "proof-ledger");
+    const compiled = buildSlidevMarkdownFromDeckSpec({
+      input,
+      outline,
+      pitchPack,
+    });
+
+    expect(proofSlide?.body.length).toBeLessThanOrEqual(1200);
+    expect(proofSlide?.body).toContain("more accepted claims");
+    expect(proofSlide?.claimIds).toEqual(acceptedClaimIds);
+    expect(compiled.slideCount).toBe(outline.slides.length);
+  });
+
   it("validates MVP launch-pack inputs and generated output contracts", async () => {
     expect(() =>
       CreateLaunchPackRequestSchema.parse({
@@ -416,12 +506,14 @@ describe("backend contracts", () => {
       companyDescription: "ProofPitch helps founders turn product context into credible sales material.",
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
     })).toEqual({
       sourceUrl: "https://example.com",
       productName: "ProofPitch",
       companyDescription: "ProofPitch helps founders turn product context into credible sales material.",
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
     });
 
     const launchPack = LaunchPackSchema.parse({
@@ -431,6 +523,12 @@ describe("backend contracts", () => {
       productName: "ProofPitch",
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
+      deckMode: "sales",
+      claimReview: {
+        status: "approved",
+        acceptedClaimIds: ["claim-1"],
+        rejectedClaimIds: ["claim-2"],
+      },
       demoScript: "Open the product, show the proof ledger, then use the separate deck.",
       captions: ["Open the product", "Review evidence", "Publish after review"],
       screenshots: [
@@ -468,6 +566,23 @@ describe("backend contracts", () => {
         format: "slidev",
         title: "ProofPitch release deck",
         slideCount: 6,
+        renderState: "queued",
+        deckMode: "sales",
+        outline: {
+          status: "ready",
+          deckMode: "sales",
+          acceptedClaimIds: ["claim-1"],
+          slides: [
+            {
+              id: "slide-1",
+              title: "ProofPitch",
+              layout: "cover",
+              body: "ProofPitch turns rough notes into verified pitch packs.",
+              claimIds: [],
+              notes: "Open with the product promise.",
+            },
+          ],
+        },
         markdown: "---\ntheme: default\n---\n# ProofPitch\n",
         exports: [
           {
@@ -491,7 +606,9 @@ describe("backend contracts", () => {
     expect(RemotionRenderPropsSchema.parse(launchPack.demoVideo.renderProps).demoSteps).toHaveLength(3);
     expect(Object.keys(launchPack).sort()).toEqual([
       "captions",
+      "claimReview",
       "createdAt",
+      "deckMode",
       "demoScript",
       "demoVideo",
       "id",
@@ -587,6 +704,7 @@ describe("backend contracts", () => {
         productName: "ProofPitch",
         targetAudience: "Founder-led B2B teams",
         launchGoal: "Release with a pitch deck and product demo video",
+        deckMode: "sales",
       },
       pitchPack: buildPitchPack(),
       screenshots: [
@@ -600,13 +718,15 @@ describe("backend contracts", () => {
     });
 
     expect(assets.pitchDeck).toMatchObject({
-      status: "ready",
+      status: "pending",
       format: "slidev",
       title: "ProofPitch release deck",
+      renderState: "queued",
+      deckMode: "sales",
     });
-    expect(assets.pitchDeck.slideCount).toBeGreaterThanOrEqual(6);
-    expect(assets.pitchDeck.markdown).toContain("# ProofPitch");
-    expect(assets.pitchDeck.markdown).toContain("## Product");
+    expect(assets.pitchDeck.slideCount).toBe(0);
+    expect(assets.pitchDeck.markdown).toBe("");
+    expect(assets.pitchDeck.outline).toMatchObject({ status: "pending", deckMode: "sales" });
     expect(Object.keys(assets).sort()).toEqual(["demoVideo", "pitchDeck", "releaseChecklist"]);
     expect(assets.demoVideo).toMatchObject({
       renderer: "remotion",
@@ -629,6 +749,7 @@ describe("backend contracts", () => {
         productName: "ProofPitch",
         targetAudience: "Founder-led B2B teams",
         launchGoal: "Release with a pitch deck and demo video",
+        deckMode: "sales",
       },
       pitchPack: buildPitchPack(),
       screenshots: [],
@@ -653,8 +774,8 @@ describe("backend contracts", () => {
       dryRun: true,
     });
     expect(dryRun.enabled).toBe(true);
-    expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).toContain("remotion render");
+    expect(dryRun.commands.join("\n")).toContain("slidev.mjs export");
+    expect(dryRun.commands.join("\n")).toContain("remotion-cli.js render");
     expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
   });
 
@@ -668,6 +789,7 @@ describe("backend contracts", () => {
         targetAudience: "Founder-led B2B teams",
         launchGoal: "Release with a guided product demo video",
         demoInstructions: "Accept cookies, search pricing, then scroll to the CTA.",
+        deckMode: "sales",
       },
       pitchPack: buildPitchPack(),
       screenshots: [],
@@ -681,7 +803,7 @@ describe("backend contracts", () => {
 });
 
 describe("local backend flow", () => {
-  it("creates a local MVP release pack with deck and product-demo metadata only", async () => {
+  it("creates a local release pack with claim review before outline, then approves an outline", async () => {
     const service = await import("../lib/launch-pack-service");
     const input = {
       sourceUrl: "https://example.com",
@@ -689,13 +811,31 @@ describe("local backend flow", () => {
       targetAudience: "Founder-led B2B teams",
       launchGoal: "Release with a pitch deck and product demo video",
       demoInstructions: "Show the claim ledger and the product workflow.",
+      deckMode: "sales" as const,
     };
 
     const created = await service.createLaunchPack(input);
+    const outlined = await service.approveLaunchPackDeckOutline(created.id, {
+      acceptedClaimIds: ["claim-1"],
+    });
     const detail = await service.getLaunchPackDetail(created.id);
 
-    expect(created.status).toBe("completed");
-    expect(created.pitchDeck.markdown).toContain("# ProofPitch");
+    expect(created.status).toBe("running");
+    expect(created.claimReview).toMatchObject({
+      status: "pending",
+      acceptedClaimIds: ["claim-1"],
+      rejectedClaimIds: ["claim-2"],
+    });
+    expect(created.pitchDeck).toMatchObject({
+      status: "pending",
+      renderState: "queued",
+      markdown: "",
+    });
+    expect(outlined?.status).toBe("completed");
+    expect(outlined?.claimReview.status).toBe("approved");
+    expect(outlined?.pitchDeck.status).toBe("ready");
+    expect(outlined?.pitchDeck.markdown).toContain("# ProofPitch");
+    expect(outlined?.pitchDeck.markdown).not.toContain("improves conversion by 40%");
     expect(created.demoVideo).toMatchObject({
       renderer: "remotion",
       compositionId: "ProofPitchProductDemo",
@@ -704,7 +844,9 @@ describe("local backend flow", () => {
     expect(Object.keys(created.providers)).toEqual(["openai", "tavily", "pioneer"]);
     expect(Object.keys(created).sort()).toEqual([
       "captions",
+      "claimReview",
       "createdAt",
+      "deckMode",
       "demoInstructions",
       "demoScript",
       "demoVideo",
@@ -721,10 +863,161 @@ describe("local backend flow", () => {
       "targetAudience",
       "updatedAt",
     ]);
-    expect(detail?.launchPack.demoVideo.uploadStatus).toBe("blocked_by_provider_review");
+    expect(detail?.launchPack.pitchDeck.outline?.status).toBe("ready");
   });
 
-  it("creates one local pack, exposes full detail, then blocks the capped free pack", async () => {
+  it("exposes the claim gate, outline approval, and queued render job through API routes", async () => {
+    vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
+    const { POST: create } = await import("../app/api/launch-packs/route");
+    const { POST: approveOutline } = await import("../app/api/launch-packs/[id]/outline/route");
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+
+    const createResponse = await create(
+      new Request("https://proofpitch.test/api/launch-packs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceUrl: "https://example.com",
+          productName: "ProofPitch",
+          targetAudience: "Founder-led B2B teams",
+          launchGoal: "Release with a pitch deck and product demo video",
+          deckMode: "sales",
+        }),
+      }),
+    );
+    const created = await createResponse.json();
+
+    expect(createResponse.status).toBe(200);
+    expect(created.claimReview.status).toBe("pending");
+    expect(created.pitchDeck.status).toBe("pending");
+    expect(created.pitchDeck.markdown).toBe("");
+
+    const outlineResponse = await approveOutline(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/outline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acceptedClaimIds: ["claim-1"] }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const outlined = await outlineResponse.json();
+
+    expect(outlineResponse.status).toBe(200);
+    expect(outlined.pitchDeck.outline.status).toBe("ready");
+    expect(outlined.pitchDeck.markdown).toContain("Proof Ledger");
+
+    const renderResponse = await render(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/render`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const renderBody = await renderResponse.json();
+
+    expect(renderResponse.status).toBe(200);
+    expect(renderBody.pitchDeck.renderState).toBe("queued");
+    expect(renderBody.render.commands.join("\n")).toContain("slidev.mjs export");
+    expect(renderBody.render.commands.join("\n")).toContain("--format pdf");
+  });
+
+  it("approves and queues render from the request payload when anonymous local storage is unavailable", async () => {
+    const { POST: create } = await import("../app/api/launch-packs/route");
+    const { POST: approveOutline } = await import("../app/api/launch-packs/[id]/outline/route");
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+
+    const createResponse = await create(
+      new Request("https://proofpitch.test/api/launch-packs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceUrl: "https://example.com",
+          productName: "ProofPitch",
+          targetAudience: "Founder-led B2B teams",
+          launchGoal: "Release with a pitch deck and product demo video",
+          deckMode: "sales",
+        }),
+      }),
+    );
+    const created = await createResponse.json();
+
+    (globalThis as typeof globalThis & { __proofpitchLocalStore?: unknown }).__proofpitchLocalStore =
+      undefined;
+
+    const outlineResponse = await approveOutline(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/outline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acceptedClaimIds: created.claimReview.acceptedClaimIds,
+          launchPack: created,
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const outlined = await outlineResponse.json();
+
+    expect(outlineResponse.status).toBe(200);
+    expect(outlined.id).toBe(created.id);
+    expect(outlined.pitchDeck.status).toBe("ready");
+    expect(outlined.pitchDeck.markdown).toContain("Proof Ledger");
+
+    const renderResponse = await render(
+      new Request(`https://proofpitch.test/api/launch-packs/${created.id}/render`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dryRun: false,
+          launchPack: outlined,
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    const renderBody = await renderResponse.json();
+
+    expect(renderResponse.status).toBe(200);
+    expect(renderBody.requiresSignIn).toBe(false);
+    expect(renderBody.render.enabled).toBe(false);
+    expect(renderBody.pitchDeck.renderState).toBe("queued");
+  });
+
+  it("does not allow public video render requests to force rendering or supply fallback launch packs", async () => {
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+
+    const forcedResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          force: true,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(forcedResponse.status).toBe(400);
+
+    const fallbackResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(fallbackResponse.status).toBe(404);
+  });
+
+  it("creates repeated local packs without quota blocking", async () => {
     const service = await import("../lib/pitch-pack-service");
     const input = {
       rawInput: "ProofPitch turns rough founder notes into verified pitch packs.",
@@ -735,14 +1028,16 @@ describe("local backend flow", () => {
     const detail = await service.getPitchPackDetail(first.record?.id ?? "");
     const projects = await service.listProjects();
 
-    expect(first.quota?.remaining).toBe(0);
+    expect(first.quota?.billingMode).toBe("free-access");
+    expect(first.quota?.remaining).toBeGreaterThan(1_000_000);
     expect(detail?.sourceDocuments).toHaveLength(2);
     expect(detail?.providerRuns[0].metadata).toMatchObject({ requestId: "req-test" });
     expect(projects.items[0]).toMatchObject({ name: "ProofPitch", pitchPackCount: 1 });
 
-    await expect(service.createPitchPack(input)).rejects.toMatchObject({
-      quota: expect.objectContaining({ remaining: 0 }),
-    });
+    const second = await service.createPitchPack(input);
+
+    expect(second.record?.id).toBeTruthy();
+    expect(second.quota?.remaining).toBeGreaterThan(1_000_000);
   });
 });
 
@@ -797,7 +1092,7 @@ describe("Stripe billing routes", () => {
     vi.stubEnv("STRIPE_SINGLE_PRICE_ID", "price_single");
   });
 
-  it("rejects paid checkout for anonymous visitors", async () => {
+  it("keeps checkout disabled while pricing is documentation-only", async () => {
     const { POST } = await import("../app/api/billing/checkout/route");
     const response = await POST(
       new Request("https://proofpitch.test/api/billing/checkout", {
@@ -806,47 +1101,14 @@ describe("Stripe billing routes", () => {
         body: JSON.stringify({ plan: "founder" }),
       }),
     );
-
-    expect(response.status).toBe(401);
-    expect(stripeState.checkoutSessions).toHaveLength(0);
-  });
-
-  it("creates a Stripe Checkout subscription session for an authenticated paid plan", async () => {
-    const admin = new MockSupabaseAdmin();
-    mockState.admin = admin;
-    mockState.user = { id: "user-1", email: "founder@example.com" };
-
-    const { POST } = await import("../app/api/billing/checkout/route");
-    const response = await POST(
-      new Request("https://proofpitch.test/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "pro" }),
-      }),
-    );
     const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(body).toMatchObject({
-      checkoutUrl: "https://checkout.stripe.test/proofpitch",
-      plan: "pro",
+    expect(response.status).toBe(410);
+    expect(body.pricing).toMatchObject({
+      mode: "documentation_only",
+      docs: "docs/BUSINESS_PLAN.md",
     });
-    expect(stripeState.instances[0]).toMatchObject({
-      secret: "sk_test_proofpitch",
-      apiVersion: "2026-04-22.dahlia",
-    });
-    expect(stripeState.checkoutSessions[0]).toMatchObject({
-      mode: "subscription",
-      customer_email: "founder@example.com",
-      line_items: [{ price: "price_pro", quantity: 1 }],
-      success_url: "https://proofpitch.test/?checkout=success&plan=pro",
-      cancel_url: "https://proofpitch.test/?checkout=cancelled&plan=pro",
-    });
-    expect(stripeState.checkoutSessions[0].metadata).toMatchObject({
-      plan: "pro",
-      userId: "user-1",
-      organizationId: admin.tables.organizations[0].id,
-    });
+    expect(stripeState.checkoutSessions).toHaveLength(0);
   });
 
   it("applies checkout webhook entitlements to organizations", async () => {

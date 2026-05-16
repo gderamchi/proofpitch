@@ -1,7 +1,10 @@
+import os from "node:os";
 import path from "node:path";
 
 export function outputDirForLaunchPack(launchPackId: string) {
-  return path.join(process.cwd(), ".proofpitch", "release-assets", launchPackId);
+  const outputRoot = process.env.PROOFPITCH_OUTPUT_DIR ?? (process.env.VERCEL ? os.tmpdir() : process.cwd());
+
+  return path.join(outputRoot, ".proofpitch", "release-assets", launchPackId);
 }
 
 export function renderedDemoVideoPath(launchPackId: string) {

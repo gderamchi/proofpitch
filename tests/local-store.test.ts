@@ -4,23 +4,24 @@ import { consumeLocalQuota, getLocalQuotaSnapshot } from "../lib/local-store";
 
 const LOCAL_STORE_KEY = "__proofpitchLocalStore";
 
-describe("local demo quota", () => {
+describe("local free access quota", () => {
   beforeEach(() => {
     delete (globalThis as Record<string, unknown>)[LOCAL_STORE_KEY];
     vi.unstubAllEnvs();
   });
 
-  it("keeps the unauthenticated demo usable by default", () => {
-    expect(getLocalQuotaSnapshot().monthlyLimit).toBe(1000);
+  it("keeps the unauthenticated product usable without a practical cap", () => {
+    expect(getLocalQuotaSnapshot().monthlyLimit).toBe(Number.MAX_SAFE_INTEGER);
 
     expect(consumeLocalQuota().ok).toBe(true);
     const second = consumeLocalQuota();
 
     expect(second.ok).toBe(true);
-    expect(second.quota.remaining).toBe(998);
+    expect(second.quota.billingMode).toBe("free-access");
+    expect(second.quota.remaining).toBeGreaterThan(1_000_000);
   });
 
-  it("allows the local demo limit to be capped by env", () => {
+  it("ignores legacy local demo limit env caps", () => {
     vi.stubEnv("PROOFPITCH_LOCAL_DEMO_PACK_LIMIT", "2");
 
     expect(consumeLocalQuota().ok).toBe(true);
@@ -28,7 +29,8 @@ describe("local demo quota", () => {
 
     const third = consumeLocalQuota();
 
-    expect(third.ok).toBe(false);
-    expect(third.quota.remaining).toBe(0);
+    expect(third.ok).toBe(true);
+    expect(third.quota.monthlyLimit).toBe(Number.MAX_SAFE_INTEGER);
+    expect(third.quota.remaining).toBeGreaterThan(1_000_000);
   });
 });

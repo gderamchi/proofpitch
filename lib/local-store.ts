@@ -1,4 +1,4 @@
-import { getBillingMode } from "./plans";
+import { getRuntimeBillingMode, getRuntimePackLimit } from "./plans";
 import type {
   CreateProjectRequest,
   GeneratePitchPackRequest,
@@ -50,7 +50,6 @@ export type LocalStoredLaunchPack = {
 };
 
 const LOCAL_ORGANIZATION_ID = "local-demo";
-const DEFAULT_LOCAL_DEMO_PACK_LIMIT = 1000;
 
 const globalStore = globalThis as typeof globalThis & {
   __proofpitchLocalStore?: LocalStore;
@@ -59,16 +58,6 @@ const globalStore = globalThis as typeof globalThis & {
 function getPeriodStart() {
   const now = new Date();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function getLocalDemoPackLimit() {
-  const parsed = Number.parseInt(process.env.PROOFPITCH_LOCAL_DEMO_PACK_LIMIT ?? "", 10);
-
-  if (Number.isFinite(parsed) && parsed >= 0) {
-    return parsed;
-  }
-
-  return DEFAULT_LOCAL_DEMO_PACK_LIMIT;
 }
 
 function getStore() {
@@ -93,12 +82,12 @@ function getStore() {
 
 export function getLocalQuotaSnapshot(): QuotaSnapshot {
   const store = getStore();
-  const monthlyLimit = getLocalDemoPackLimit();
+  const monthlyLimit = getRuntimePackLimit();
 
   return {
     organizationId: LOCAL_ORGANIZATION_ID,
     plan: "free",
-    billingMode: getBillingMode(),
+    billingMode: getRuntimeBillingMode(),
     monthlyLimit,
     usedThisPeriod: store.packCount,
     remaining: Math.max(0, monthlyLimit - store.packCount),
@@ -110,15 +99,6 @@ export function getLocalQuotaSnapshot(): QuotaSnapshot {
 
 export function consumeLocalQuota() {
   const store = getStore();
-  const quota = getLocalQuotaSnapshot();
-
-  if (quota.remaining <= 0) {
-    return {
-      ok: false as const,
-      quota,
-    };
-  }
-
   store.packCount += 1;
 
   return {
@@ -323,4 +303,16 @@ export function saveLocalLaunchPack(launchPack: LaunchPack) {
 
 export function getLocalLaunchPack(id: string) {
   return getStore().launchPacks.find((pack) => pack.id === id) ?? null;
+}
+
+export function updateLocalLaunchPack(id: string, launchPack: LaunchPack) {
+  const stored = getLocalLaunchPack(id);
+
+  if (!stored) {
+    return null;
+  }
+
+  stored.launchPack = launchPack;
+
+  return stored;
 }

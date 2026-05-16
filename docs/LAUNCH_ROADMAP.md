@@ -15,19 +15,23 @@ Done:
 - Provider adapters.
 - Local deterministic result.
 - Claim ledger UI.
+- Deck mode selector.
+- Claim-gated Slidev outline generation.
+- Deterministic Slidev markdown compiler.
+- PDF render state API.
 - Supabase migration with RLS.
 - Auth API routes.
 - Saved-pack API with local in-memory mode.
-- Usage quotas and manual billing mode.
+- Free-access mode with quotas disabled.
 - Markdown export API.
-- Stripe test-mode checkout and webhook entitlement updates.
+- Stripe entitlement code retained for future monetization, with checkout disabled in the current product.
 
 Remaining:
 
 - Live provider validation.
 - Remote Supabase project linkage.
-- Full rendered asset export.
-- Live-mode Stripe checkout.
+- Production PDF storage/render worker hardening.
+- Decision on when to re-enable checkout.
 
 ## Phase 1: Private Alpha
 

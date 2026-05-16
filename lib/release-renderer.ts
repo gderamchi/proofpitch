@@ -12,7 +12,7 @@ import {
   renderedDemoVideoUrl,
   renderedVoiceoverSegmentUrl,
 } from "./release-paths";
-import type { DemoVideo, PitchDeck, RemotionRenderProps } from "./schemas";
+import type { DemoVideo, PitchDeck, ProductDemoScreenshot, RemotionRenderProps } from "./schemas";
 
 type RenderReleaseArtifactsInput = {
   launchPackId: string;
@@ -51,6 +51,52 @@ function commandLine(command: string, args: string[]) {
   return [command, ...args.map((arg) => (arg.includes(" ") ? JSON.stringify(arg) : arg))].join(" ");
 }
 
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function placeholderScreenshotDataUrl(title: string, reason: string) {
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">`,
+    `<rect width="1440" height="1000" fill="#f4efe6"/>`,
+    `<rect x="48" y="48" width="1344" height="904" fill="#fffaf0" stroke="#111827" stroke-width="3"/>`,
+    `<rect x="96" y="292" width="560" height="52" fill="#111827"/>`,
+    `<rect x="96" y="376" width="780" height="34" fill="#334155"/>`,
+    `<rect x="96" y="440" width="680" height="34" fill="#64748b"/>`,
+    `<rect x="96" y="540" width="1120" height="260" fill="#e2e8f0" stroke="#111827" stroke-width="2"/>`,
+    `<text x="96" y="170" font-family="Georgia,serif" font-size="62" font-weight="700" fill="#111827">${escapeXml(title).slice(0, 80)}</text>`,
+    `<text x="96" y="238" font-family="Arial,sans-serif" font-size="26" fill="#475569">${escapeXml(reason).slice(0, 130)}</text>`,
+    `</svg>`,
+  ].join("");
+
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
+function fallbackScreenshots(renderProps: RemotionRenderProps, reason: string): ProductDemoScreenshot[] {
+  const screenshots = renderProps.screenshots.length
+    ? renderProps.screenshots
+    : [
+        {
+          action: "open" as const,
+          title: `${renderProps.productName} product entry`,
+          url: renderProps.sourceUrl,
+          alt: `${renderProps.productName} product entry`,
+        },
+      ];
+
+  return screenshots.slice(0, 4).map((screenshot, index) => ({
+    ...screenshot,
+    action: screenshot.action ?? (index === 0 ? "open" : "scroll"),
+    alt: screenshot.alt || `${renderProps.productName} demo step ${index + 1}`,
+    target: screenshot.target ?? screenshot.title,
+    url: placeholderScreenshotDataUrl(screenshot.title, reason),
+  }));
+}
+
 async function runCommand(command: string, args: string[]) {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
@@ -86,12 +132,24 @@ async function withCapturedScreenshots(
     return renderProps;
   }
 
-  const capture = await captureWebsiteScreenshots({
-    outputDir: path.join(outputDir, "captures"),
-    pathInstructions: renderProps.demoPath,
-    productName: renderProps.productName,
-    sourceUrl: renderProps.sourceUrl,
-  });
+  let capture: Awaited<ReturnType<typeof captureWebsiteScreenshots>>;
+
+  try {
+    capture = await captureWebsiteScreenshots({
+      outputDir: path.join(outputDir, "captures"),
+      pathInstructions: renderProps.demoPath,
+      productName: renderProps.productName,
+      sourceUrl: renderProps.sourceUrl,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Browser capture unavailable.";
+
+    return {
+      ...renderProps,
+      screenshots: fallbackScreenshots(renderProps, reason),
+      captions: [...renderProps.captions, `Browser capture fallback: ${reason}`].slice(0, 5),
+    };
+  }
 
   const recordingPath = capture.recordingPath ? renderedBrowserRecordingPath(launchPackId) : undefined;
 
@@ -154,10 +212,12 @@ export async function renderReleaseArtifacts({
   const videoPath = renderedDemoVideoPath(launchPackId);
   const shouldRenderDeck = renderDeck;
   const shouldRenderVideo = renderVideo && Boolean(demoVideo.renderProps) && !demoVideo.url;
-  const slidevPdfArgs = ["@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
-  const slidevPngArgs = ["@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
+  const slidevCliPath = path.join(process.cwd(), "node_modules", "@slidev", "cli", "bin", "slidev.mjs");
+  const remotionCliPath = path.join(process.cwd(), "node_modules", "@remotion", "cli", "remotion-cli.js");
+  const slidevPdfArgs = [slidevCliPath, "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
+  const slidevPngArgs = [slidevCliPath, "export", deckPath, "--format", "png", "--output", deckPngPath];
   const remotionArgs = [
-    "remotion",
+    remotionCliPath,
     "render",
     "remotion/index.tsx",
     demoVideo.compositionId || "ProofPitchProductDemo",
@@ -169,8 +229,8 @@ export async function renderReleaseArtifacts({
     "--overwrite",
   ];
   const commands = [
-    ...(shouldRenderDeck ? [commandLine("npx", slidevPdfArgs), commandLine("npx", slidevPngArgs)] : []),
-    ...(shouldRenderVideo ? [commandLine("npx", remotionArgs)] : []),
+    ...(shouldRenderDeck ? [commandLine(process.execPath, slidevPdfArgs), commandLine(process.execPath, slidevPngArgs)] : []),
+    ...(shouldRenderVideo ? [commandLine(process.execPath, remotionArgs)] : []),
   ];
   const artifacts: RenderArtifact[] = [
     ...(shouldRenderDeck
@@ -231,13 +291,13 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderDeck) {
-      await runCommand("npx", slidevPdfArgs);
+      await runCommand(process.execPath, slidevPdfArgs);
       artifacts[0] = {
         ...artifacts[0],
         status: "ready",
       };
 
-      await runCommand("npx", slidevPngArgs);
+      await runCommand(process.execPath, slidevPngArgs);
       artifacts[1] = {
         ...artifacts[1],
         status: "ready",
@@ -245,7 +305,7 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderVideo) {
-      await runCommand("npx", remotionArgs);
+      await runCommand(process.execPath, remotionArgs);
       const videoArtifactIndex = artifacts.findIndex((artifact) => artifact.type === "video");
       artifacts[videoArtifactIndex] = {
         ...artifacts[videoArtifactIndex],

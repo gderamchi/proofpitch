@@ -2,7 +2,7 @@
 
 ## 1. Summary
 
-ProofPitch turns a product URL and short release context into a product demo video state, a separate pitch deck, and a visible claim ledger. The MVP is intentionally narrow: one input flow, one generated pack, and no publishing or voice workflow.
+ProofPitch turns a product URL, short release context, and deck mode into a claim-gated Slidev pitch deck flow, product demo video state, and visible claim ledger. The MVP is intentionally narrow: one input flow, one generated pack, and no publishing or voice workflow.
 
 ## 2. Core Value
 
@@ -17,18 +17,25 @@ Teams need launch material that is clear enough to reuse and conservative enough
 ## 4. Core Workflow
 
 1. User enters a public product URL.
-2. User adds product name, target audience, release goal, and optional demo instructions.
+2. User adds product name, target audience, release goal, optional demo instructions, and deck mode (`investor`, `sales`, or `launch`).
 3. Tavily gathers source material when configured.
 4. Pioneer extracts entities and claim risk when configured.
 5. OpenAI generates a structured `PitchPack`.
-6. ProofPitch returns a `LaunchPack` with a separate Slidev `pitchDeck` and product-demo `demoVideo`.
-7. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
-8. User reviews the claim ledger before using the deck or demo plan externally.
+6. ProofPitch returns a `LaunchPack` with claim review, pending Slidev `pitchDeck`, and product-demo `demoVideo`.
+7. User approves non-unsupported claims before ProofPitch builds a structured `DeckOutline`.
+8. ProofPitch compiles the approved `DeckOutline` into deterministic Slidev markdown.
+9. User reviews a visual slide preview with thumbnails, screenshot cues from the captured product surface when available, and can download the underlying Slidev markdown as a secondary technical artifact.
+10. User starts PDF rendering from the approved outline. The endpoint never requires login; when no render worker is enabled, it keeps the deck queued and reports rendering as disabled.
+11. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
 
 ## 5. P0 Requirements
 
 - Compact landing page that fits the first screen on desktop.
 - Responsive generator form with no pricing, auth panel, provider strip, or scroll narrative.
+- Deck mode selector for investor, sales, and launch decks.
+- Claim approval gate before outline generation.
+- Visual 16:9 deck preview after outline approval, with slide navigation, thumbnail selection, and product screenshot cues where capture data exists.
+- Deterministic `DeckOutline` to Slidev Markdown compilation; the LLM must not output arbitrary Slidev/Vue.
 - `LaunchPack` schema containing only `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, checklist, and request metadata.
 - `PitchPack` schema with claim ledger, reusable pitch copy, risks, next steps, and provider usage.
 - `LaunchPack` response includes OpenAI, Tavily, and Pioneer provider status.
@@ -44,12 +51,18 @@ Teams need launch material that is clear enough to reuse and conservative enough
 - Generated media prompts.
 - External channel drafts.
 - Pricing presentation on the landing page.
+- Runtime login, paywall, or quota enforcement.
 - Slide video masquerading as a product demo.
+
+Gradium voiceover is a planned extension for the product-demo video only, not for replacing the product demo with a narrated slide deck.
 
 ## 7. Success Criteria
 
 - A new user understands the workflow immediately on the first screen.
 - A valid minimal request to `/api/launch-packs` returns `pitchDeck`, `demoVideo`, `pitchPack`, and provider status only.
+- `/api/launch-packs/:id/outline` turns accepted claims into the Slidev outline and markdown.
+- Approved outlines are visible as slides, not only text summaries, and expose a Slidev markdown download.
+- `/api/launch-packs/:id/render` reports PDF render state without blocking anonymous users.
 - No MVP output contains audio scripts, generated media prompts, or external publishing metadata.
 - The deck is clearly separate from the demo video state.
 - Tests and production build pass.

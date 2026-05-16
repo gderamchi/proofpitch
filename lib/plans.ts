@@ -16,6 +16,7 @@ export type PricingPlan = {
 };
 
 export const SINGLE_RELEASE_PACK_PRICE_EUR = 49;
+export const FREE_ACCESS_PACK_LIMIT = Number.MAX_SAFE_INTEGER;
 
 const DEFAULT_LIMITS: Record<PlanId, number> = {
   free: 1,
@@ -35,6 +36,14 @@ const LIMIT_ENV: Record<PlanId, string> = {
 
 export function getBillingMode() {
   return process.env.BILLING_MODE || "manual";
+}
+
+export function getRuntimeBillingMode() {
+  return "free-access";
+}
+
+export function getRuntimePackLimit() {
+  return FREE_ACCESS_PACK_LIMIT;
 }
 
 export function getPlanLimit(plan: PlanId) {
