@@ -11,6 +11,8 @@
     "release:deck:export": "slidev export .proofpitch/release-assets/latest/pitch-deck.md --format pdf --output .proofpitch/release-assets/latest/pitch-deck.pdf",
     "release:video:studio": "remotion studio remotion/index.tsx",
     "release:video:render": "remotion render remotion/index.tsx ProofPitchProductDemo .proofpitch/release-assets/latest/demo-video.mp4",
+    "release:video:hyperframes:check": "npm --prefix hyperframes/proofpitch-demo run check",
+    "release:video:hyperframes:render": "npm --prefix hyperframes/proofpitch-demo run render -- --output ../../public/demo/proofpitch-hyperframes-demo.mp4 --quality standard --workers 1",
     "release:render:local": "node scripts/render-release-artifacts.mjs"
   },
   "dependencies": {

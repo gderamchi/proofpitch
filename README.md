@@ -191,6 +191,8 @@ npm run release:render:local
 npm run release:deck:export
 npm run release:video:studio
 npm run release:video:render
+npm run release:video:hyperframes:check
+npm run release:video:hyperframes:render
 ```
 
 - `dev`: starts the Next.js development server.
@@ -200,6 +202,25 @@ npm run release:video:render
 - `release:render:local`: renders configured local release artifacts through `scripts/render-release-artifacts.mjs`.
 - `release:deck:export`: exports a generated Slidev deck PDF from `.proofpitch/release-assets/latest/pitch-deck.md`.
 - `release:video:studio` and `release:video:render`: inspect or render the Remotion `ProofPitchProductDemo` composition.
+- `release:video:hyperframes:check` and `release:video:hyperframes:render`: validate and render the HyperFrames demo video in `hyperframes/proofpitch-demo`, writing the public MP4 to `public/demo/proofpitch-hyperframes-demo.mp4`.
+
+## HyperFrames Demo Video
+
+The repository includes a HyperFrames source project for a 24-second ProofPitch product walkthrough:
+
+- Source: `hyperframes/proofpitch-demo/index.html`
+- Visual identity: `hyperframes/proofpitch-demo/DESIGN.md`
+- Public render: `public/demo/proofpitch-hyperframes-demo.mp4`
+- Production path after deploy: `/demo/proofpitch-hyperframes-demo.mp4`
+
+Regenerate it with:
+
+```bash
+npm run release:video:hyperframes:check
+npm run release:video:hyperframes:render
+```
+
+The video keeps the MVP contract explicit: claim review happens before deck generation, and the pitch deck, demo-video state, and launch tray are shown as separate assets.
 
 ## Architecture At A Glance
 

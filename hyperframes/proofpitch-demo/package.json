@@ -1,0 +1,11 @@
+{
+  "name": "proofpitch-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.6.13 preview",
+    "check": "npx --yes hyperframes@0.6.13 lint && npx --yes hyperframes@0.6.13 validate && npx --yes hyperframes@0.6.13 inspect",
+    "render": "npx --yes hyperframes@0.6.13 render",
+    "publish": "npx --yes hyperframes@0.6.13 publish"
+  }
+}
