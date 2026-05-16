@@ -15,6 +15,10 @@ Done:
 - Provider adapters.
 - Local deterministic result.
 - Claim ledger UI.
+- Deck mode selector.
+- Claim-gated Slidev outline generation.
+- Deterministic Slidev markdown compiler.
+- PDF render state API.
 - Supabase migration with RLS.
 - Auth API routes.
 - Saved-pack API with local in-memory mode.
@@ -26,7 +30,7 @@ Remaining:
 
 - Live provider validation.
 - Remote Supabase project linkage.
-- Full rendered asset export.
+- Production PDF storage/render worker hardening.
 - Live-mode Stripe checkout.
 
 ## Phase 1: Private Alpha

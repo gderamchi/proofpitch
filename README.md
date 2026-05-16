@@ -3,15 +3,17 @@
 ProofPitch is an MVP for one workflow:
 
 ```text
-product URL + short context -> product demo video state + separate pitch deck + claim ledger
+product URL + short context + deck mode -> claim review -> Slidev outline -> PDF render state
 ```
 
-The app deliberately keeps the deck and product demo separate. When Playwright capture is disabled or cannot record the product URL, the API returns `demoVideo.status: "pending"` with an explicit blocker instead of pretending a slide video is a product demo.
+The app deliberately keeps the deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. When Playwright capture is disabled or cannot record the product URL, the API returns `demoVideo.status: "pending"` with an explicit blocker instead of pretending a slide video is a product demo.
 
 ## MVP Scope
 
-- Compact landing page with product URL, product name, audience, goal, optional demo instructions, and one generate CTA.
+- Compact landing page with product URL, product name, audience, goal, optional demo instructions, deck mode, claim review, and outline approval.
 - `LaunchPack` output with `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, and checklist.
+- `DeckMode` values: `investor`, `sales`, and `launch`.
+- `pitchDeck` starts pending, then stores a validated `DeckOutline`, deterministic Slidev markdown, render state, and PDF export metadata after approval/render.
 - `PitchPack` output with reusable pitch copy, demo steps, claim ledger, risks, next steps, and provider usage.
 - Providers in the public contract: OpenAI, Tavily, and Pioneer.
 - Tavily supplies research sources for proof-backed claims.
@@ -61,7 +63,8 @@ Request:
   "productName": "ProofPitch",
   "targetAudience": "Founder-led B2B teams",
   "launchGoal": "Prepare a customer-call demo and concise deck.",
-  "demoInstructions": "Show the core workflow and proof moment."
+  "demoInstructions": "Show the core workflow and proof moment.",
+  "deckMode": "sales"
 }
 ```
 
@@ -70,8 +73,10 @@ Response shape:
 ```json
 {
   "id": "launch-id",
-  "status": "completed",
-  "pitchDeck": { "status": "ready", "format": "slidev" },
+  "status": "running",
+  "deckMode": "sales",
+  "claimReview": { "status": "pending", "acceptedClaimIds": ["claim-1"], "rejectedClaimIds": ["claim-2"] },
+  "pitchDeck": { "status": "pending", "format": "slidev", "renderState": "queued" },
   "demoVideo": { "status": "pending", "uploadStatus": "blocked_by_provider_review" },
   "pitchPack": { "projectName": "ProofPitch", "claims": [] },
   "providers": {
@@ -83,6 +88,26 @@ Response shape:
 ```
 
 `demoVideo.status` is `ready` only when product walkthrough capture produced a real video path. Otherwise it is explicitly pending or blocked.
+
+### `POST /api/launch-packs/:id/outline`
+
+Approves claims and generates the structured deck outline plus deterministic Slidev markdown.
+
+Request:
+
+```json
+{
+  "acceptedClaimIds": ["claim-1"]
+}
+```
+
+### `POST /api/launch-packs/:id/render`
+
+Starts the PDF render path for an approved outline. Production export is gated behind authenticated storage. Local dev rendering requires:
+
+```bash
+PROOFPITCH_ENABLE_LOCAL_RENDER=1
+```
 
 ### `POST /api/generate-pitch-pack`
 

@@ -6,18 +6,31 @@ ProofPitch has one supported product path:
 
 ```text
 POST /api/launch-packs
-product URL + brief context -> LaunchPack
+product URL + brief context + deck mode -> claim-gated LaunchPack
 ```
 
 The returned `LaunchPack` contains:
 
-- `pitchDeck`: Slidev markdown and export metadata.
+- `deckMode`: `investor`, `sales`, or `launch`.
+- `claimReview`: pending or approved claim IDs for deck inclusion.
+- `pitchDeck`: pending deck state, approved `DeckOutline`, deterministic Slidev markdown, render state, and PDF export metadata.
 - `demoVideo`: real product capture metadata when available, otherwise an explicit pending/blocked state.
 - `pitchPack`: generated story, claim ledger, risks, next steps, and provider usage.
 - `providers`: OpenAI, Tavily, and Pioneer status details.
 - screenshots, captions, checklist, and request metadata.
 
 It does not contain audio scripts, generated media prompts, channel drafts, or external publishing payloads.
+
+## Slidev Deck Generation
+
+The model must not emit arbitrary Slidev, Vue, or executable markdown. The server builds a validated `DeckOutline` from:
+
+- `PitchPack`
+- accepted non-unsupported claim IDs
+- `DeckMode`
+- launch-pack input
+
+The server then compiles that outline into Slidev markdown using the fixed ProofPitch template. Initial launch-pack generation returns `pitchDeck.status: "pending"` until claims are approved through `/api/launch-packs/:id/outline`.
 
 ## Providers
 
@@ -56,6 +69,8 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
 When enabled, the renderer can export the Slidev deck. Remotion rendering only runs when `demoVideo.status` is `ready` and render props exist.
+
+Production PDF export is gated behind authenticated storage. Anonymous/local packs may be generated and outlined, but PDF storage should return a sign-in requirement unless local rendering is explicitly enabled.
 
 ## Environment
 

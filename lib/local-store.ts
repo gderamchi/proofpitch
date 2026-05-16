@@ -324,3 +324,15 @@ export function saveLocalLaunchPack(launchPack: LaunchPack) {
 export function getLocalLaunchPack(id: string) {
   return getStore().launchPacks.find((pack) => pack.id === id) ?? null;
 }
+
+export function updateLocalLaunchPack(id: string, launchPack: LaunchPack) {
+  const stored = getLocalLaunchPack(id);
+
+  if (!stored) {
+    return null;
+  }
+
+  stored.launchPack = launchPack;
+
+  return stored;
+}

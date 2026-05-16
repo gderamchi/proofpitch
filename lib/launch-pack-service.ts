@@ -1,15 +1,26 @@
 import { generatePitchPackWithRunLogs } from "./pitch-pack";
 import { captureLaunchDemo } from "./launch-capture";
-import { buildReleaseAssets, type ReleaseAssets } from "./release-assets";
-import { getLocalLaunchPack, saveLocalLaunchPack } from "./local-store";
 import {
+  buildApprovedPitchDeck,
+  buildReleaseAssets,
+  type ReleaseAssets,
+} from "./release-assets";
+import { getLocalLaunchPack, saveLocalLaunchPack, updateLocalLaunchPack } from "./local-store";
+import { buildClaimReview } from "./deck-spec";
+import { renderReleaseArtifacts } from "./release-renderer";
+import {
+  ApproveDeckOutlineRequestSchema,
   CreateLaunchPackRequestSchema,
   LaunchPackSchema,
+  RenderLaunchDeckRequestSchema,
+  type ApproveDeckOutlineRequest,
   type CreateLaunchPackRequest,
   type LaunchPack,
+  type RenderLaunchDeckRequest,
 } from "./schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "./supabase/server";
 import { getAuthenticatedUser, getRequiredSupabaseContext } from "./pitch-pack-service";
+import { readFile } from "node:fs/promises";
 
 type LaunchPackDetail = {
   launchPack: LaunchPack;
@@ -46,6 +57,7 @@ function shortGoal(input: CreateLaunchPackRequest) {
 function buildRawPitchInput(input: CreateLaunchPackRequest) {
   return [
     `${input.productName} needs a focused pitch deck and a real product demo video.`,
+    `Deck mode: ${input.deckMode}.`,
     `Audience: ${input.targetAudience}.`,
     `Release goal: ${shortGoal(input)}.`,
     input.demoInstructions
@@ -71,6 +83,7 @@ function buildLaunchPack({
   providers: LaunchPack["providers"];
 }): LaunchPack {
   const now = new Date().toISOString();
+  const claimReview = buildClaimReview(pitchPack);
   const demoScript = [
     `Open ${input.productName} at ${input.sourceUrl}.`,
     input.demoInstructions || "Show the first meaningful product workflow from the public page.",
@@ -80,12 +93,14 @@ function buildLaunchPack({
 
   return LaunchPackSchema.parse({
     id: crypto.randomUUID(),
-    status: "completed",
+    status: "running",
     sourceUrl: input.sourceUrl,
     productName: input.productName,
     targetAudience: input.targetAudience,
     launchGoal: input.launchGoal,
     demoInstructions: input.demoInstructions,
+    deckMode: input.deckMode,
+    claimReview,
     demoScript,
     captions: [
       `${input.productName}: ${pitchPack.oneLiner}`,
@@ -130,6 +145,48 @@ async function saveSupabaseLaunchPack(ctx: SupabaseContext, launchPack: LaunchPa
   }
 }
 
+async function updateSupabaseLaunchPack(ctx: SupabaseContext, launchPack: LaunchPack) {
+  const admin = createSupabaseAdminClient();
+
+  if (!admin) {
+    throw new Error("Supabase admin client is unavailable.");
+  }
+
+  const { error } = await admin
+    .from("launch_packs")
+    .update({
+      status: launchPack.status,
+      output_json: launchPack,
+      video_url: launchPack.demoVideo.url ?? null,
+      screenshots: launchPack.screenshots,
+    })
+    .eq("id", launchPack.id)
+    .eq("organization_id", ctx.organization.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function persistLaunchPack(launchPack: LaunchPack) {
+  const ctx = await getLaunchContext();
+
+  if (ctx) {
+    await updateSupabaseLaunchPack(ctx, launchPack);
+    return {
+      source: "supabase" as const,
+      ctx,
+    };
+  }
+
+  updateLocalLaunchPack(launchPack.id, launchPack);
+
+  return {
+    source: "local" as const,
+    ctx: null,
+  };
+}
+
 export async function createLaunchPack(input: CreateLaunchPackRequest): Promise<LaunchPack> {
   const launchInput = CreateLaunchPackRequestSchema.parse(input);
   const [generation, capture, ctx] = await Promise.all([
@@ -162,6 +219,210 @@ export async function createLaunchPack(input: CreateLaunchPackRequest): Promise<
   }
 
   return launchPack;
+}
+
+function launchPackInput(launchPack: LaunchPack): CreateLaunchPackRequest {
+  return {
+    sourceUrl: launchPack.sourceUrl,
+    productName: launchPack.productName,
+    targetAudience: launchPack.targetAudience,
+    launchGoal: launchPack.launchGoal,
+    demoInstructions: launchPack.demoInstructions,
+    deckMode: launchPack.deckMode,
+  };
+}
+
+export async function approveLaunchPackDeckOutline(
+  id: string,
+  input: ApproveDeckOutlineRequest,
+): Promise<LaunchPack | null> {
+  const approval = ApproveDeckOutlineRequestSchema.parse(input);
+  const detail = await getLaunchPackDetail(id);
+
+  if (!detail) {
+    return null;
+  }
+
+  const base = detail.launchPack;
+  const pitchDeck = buildApprovedPitchDeck({
+    input: launchPackInput(base),
+    pitchPack: base.pitchPack,
+    acceptedClaimIds: approval.acceptedClaimIds,
+  });
+
+  if (!pitchDeck.outline.acceptedClaimIds.length) {
+    throw new Error("Accept at least one supported, weak, or user-provided claim for the deck.");
+  }
+
+  const accepted = new Set(pitchDeck.outline.acceptedClaimIds);
+  const updated = LaunchPackSchema.parse({
+    ...base,
+    status: "completed",
+    claimReview: {
+      status: "approved",
+      acceptedClaimIds: pitchDeck.outline.acceptedClaimIds,
+      rejectedClaimIds: base.pitchPack.claims
+        .filter((claim) => !accepted.has(claim.id))
+        .map((claim) => claim.id),
+    },
+    pitchDeck,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await persistLaunchPack(updated);
+
+  return updated;
+}
+
+function patchPitchDeck(launchPack: LaunchPack, patch: Partial<LaunchPack["pitchDeck"]>) {
+  return LaunchPackSchema.parse({
+    ...launchPack,
+    pitchDeck: {
+      ...launchPack.pitchDeck,
+      ...patch,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function uploadRenderedPdf(ctx: SupabaseContext, launchPack: LaunchPack, pdfPath: string) {
+  const bytes = await readFile(pdfPath);
+  const storagePath = `launch-packs/${launchPack.id}/pitch-deck.pdf`;
+  const admin = createSupabaseAdminClient();
+
+  if (!admin) {
+    throw new Error("Supabase admin client is unavailable.");
+  }
+
+  const bucket = admin.storage.from("proofpitch-exports");
+  const { error: uploadError } = await bucket.upload(storagePath, bytes, {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const { data, error: signedUrlError } = await bucket.createSignedUrl(storagePath, 60 * 60);
+
+  if (signedUrlError) {
+    throw new Error(signedUrlError.message);
+  }
+
+  return {
+    storageUrl: `storage://proofpitch-exports/${storagePath}`,
+    signedUrl: data.signedUrl,
+  };
+}
+
+export async function startLaunchPackDeckRender(
+  id: string,
+  input: RenderLaunchDeckRequest,
+) {
+  const request = RenderLaunchDeckRequestSchema.parse(input);
+  const detail = await getLaunchPackDetail(id);
+
+  if (!detail) {
+    return null;
+  }
+
+  if (detail.launchPack.pitchDeck.status !== "ready" || !detail.launchPack.pitchDeck.markdown) {
+    throw new Error("Approve the deck outline before rendering the PDF.");
+  }
+
+  const hasAuthenticatedStorage = Boolean(await getLaunchContext());
+
+  if (!hasAuthenticatedStorage && process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
+    return {
+      launchPack: patchPitchDeck(detail.launchPack, {
+        renderState: "queued",
+      }),
+      render: {
+        enabled: false,
+        commands: [],
+        artifacts: [],
+      },
+      requiresSignIn: true,
+    };
+  }
+
+  const persistence = await persistLaunchPack(
+    patchPitchDeck(detail.launchPack, {
+      renderState: request.dryRun ? "queued" : "running",
+    }),
+  );
+
+  const runningPack = (await getLaunchPackDetail(id))?.launchPack ?? detail.launchPack;
+  const render = await renderReleaseArtifacts({
+    launchPackId: id,
+    pitchDeck: runningPack.pitchDeck,
+    demoVideo: runningPack.demoVideo,
+    dryRun: request.dryRun,
+  });
+
+  if (request.dryRun) {
+    const queued = patchPitchDeck(runningPack, { renderState: "queued" });
+    await persistLaunchPack(queued);
+
+    return {
+      launchPack: queued,
+      render,
+      requiresSignIn: false,
+    };
+  }
+
+  if (render.error) {
+    const failed = patchPitchDeck(runningPack, {
+      renderState: "failed",
+      exports: runningPack.pitchDeck.exports.map((item) =>
+        item.format === "pdf" ? { ...item, status: "failed" as const, error: render.error } : item,
+      ),
+    });
+    await persistLaunchPack(failed);
+
+    return {
+      launchPack: failed,
+      render,
+      requiresSignIn: false,
+    };
+  }
+
+  const pdf = render.artifacts.find((artifact) => artifact.type === "deck" && artifact.format === "pdf");
+  let pdfExport = runningPack.pitchDeck.exports.find((item) => item.format === "pdf") ?? {
+    format: "pdf" as const,
+    status: "pending" as const,
+  };
+
+  if (pdf?.status === "ready") {
+    pdfExport = {
+      ...pdfExport,
+      status: "ready",
+      path: pdf.path,
+    };
+
+    if (persistence.source === "supabase") {
+      pdfExport = {
+        ...pdfExport,
+        ...(await uploadRenderedPdf(persistence.ctx, runningPack, pdf.path)),
+      };
+    }
+  }
+
+  const ready = patchPitchDeck(runningPack, {
+    renderState: pdf?.status === "ready" ? "ready" : "failed",
+    exports: [
+      pdfExport,
+      ...runningPack.pitchDeck.exports.filter((item) => item.format !== "pdf"),
+    ],
+  });
+  await persistLaunchPack(ready);
+
+  return {
+    launchPack: ready,
+    render,
+    requiresSignIn: false,
+  };
 }
 
 async function getSupabaseLaunchPack(id: string): Promise<LaunchPackDetail | null> {

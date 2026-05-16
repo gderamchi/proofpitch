@@ -4,6 +4,9 @@ export const PlanIdSchema = z.enum(["free", "founder", "pro", "agency", "enterpr
 export const ClaimStatusSchema = z.enum(["supported", "weak", "unsupported", "user_provided"]);
 export const SourceDocumentTypeSchema = z.enum(["user_input", "web", "repo", "upload"]);
 export const LaunchPackStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
+export const DeckModeSchema = z.enum(["investor", "sales", "launch"]);
+export const DeckRenderStateSchema = z.enum(["queued", "running", "ready", "failed"]);
+export const DeckLayoutSchema = z.enum(["cover", "section", "two_column", "proof", "demo", "risks", "closing"]);
 
 export const ClaimSchema = z.object({
   id: z.string(),
@@ -50,6 +53,7 @@ export const CreateLaunchPackRequestSchema = z.object({
   targetAudience: z.string().min(3).max(240),
   launchGoal: z.string().min(3).max(500),
   demoInstructions: z.string().max(2000).optional(),
+  deckMode: DeckModeSchema,
 });
 
 export const AuthCredentialsSchema = z.object({
@@ -147,12 +151,31 @@ export const PitchDeckExportSchema = z.object({
   error: z.string().optional(),
 });
 
+export const DeckSlideSpecSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1).max(120),
+  layout: DeckLayoutSchema,
+  body: z.string().min(1).max(1200),
+  claimIds: z.array(z.string()),
+  notes: z.string().min(1).max(1200),
+});
+
+export const DeckOutlineSchema = z.object({
+  status: z.enum(["pending", "ready"]),
+  deckMode: DeckModeSchema,
+  acceptedClaimIds: z.array(z.string()),
+  slides: z.array(DeckSlideSpecSchema),
+});
+
 export const PitchDeckSchema = z.object({
   status: z.enum(["pending", "ready", "failed"]),
   format: z.literal("slidev"),
   title: z.string(),
-  slideCount: z.number().int().min(1),
+  slideCount: z.number().int().min(0),
   markdown: z.string(),
+  deckMode: DeckModeSchema,
+  outline: DeckOutlineSchema,
+  renderState: DeckRenderStateSchema,
   exports: z.array(PitchDeckExportSchema),
   error: z.string().optional(),
 });
@@ -198,6 +221,12 @@ export const LaunchPackSchema = z.object({
   targetAudience: z.string(),
   launchGoal: z.string(),
   demoInstructions: z.string().optional(),
+  deckMode: DeckModeSchema,
+  claimReview: z.object({
+    status: z.enum(["pending", "approved"]),
+    acceptedClaimIds: z.array(z.string()),
+    rejectedClaimIds: z.array(z.string()),
+  }),
   demoScript: z.string(),
   captions: z.array(z.string()),
   screenshots: z.array(LaunchScreenshotSchema),
@@ -222,6 +251,14 @@ export const ExportRequestSchema = z.object({
   type: z.enum(["markdown", "pdf"]).default("markdown"),
 });
 
+export const ApproveDeckOutlineRequestSchema = z.object({
+  acceptedClaimIds: z.array(z.string()).min(1, "Accept at least one claim for the deck outline."),
+});
+
+export const RenderLaunchDeckRequestSchema = z.object({
+  dryRun: z.boolean().default(false),
+});
+
 export const CreateProjectRequestSchema = z.object({
   name: z.string().min(1).max(140),
   defaultUrl: z.preprocess(
@@ -243,6 +280,9 @@ export type PlanId = z.infer<typeof PlanIdSchema>;
 export type ClaimStatus = z.infer<typeof ClaimStatusSchema>;
 export type SourceDocumentType = z.infer<typeof SourceDocumentTypeSchema>;
 export type LaunchPackStatus = z.infer<typeof LaunchPackStatusSchema>;
+export type DeckMode = z.infer<typeof DeckModeSchema>;
+export type DeckRenderState = z.infer<typeof DeckRenderStateSchema>;
+export type DeckLayout = z.infer<typeof DeckLayoutSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
 export type PitchPack = z.infer<typeof PitchPackSchema>;
 export type GeneratePitchPackRequest = z.infer<typeof GeneratePitchPackRequestSchema>;
@@ -259,12 +299,16 @@ export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type LaunchScreenshot = z.infer<typeof LaunchScreenshotSchema>;
 export type SlidevExportFormat = z.infer<typeof SlidevExportFormatSchema>;
 export type PitchDeckExport = z.infer<typeof PitchDeckExportSchema>;
+export type DeckSlideSpec = z.infer<typeof DeckSlideSpecSchema>;
+export type DeckOutline = z.infer<typeof DeckOutlineSchema>;
 export type PitchDeck = z.infer<typeof PitchDeckSchema>;
 export type RemotionRenderProps = z.infer<typeof RemotionRenderPropsSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
 export type LaunchPack = z.infer<typeof LaunchPackSchema>;
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
 export type UpdatePitchPackRequest = z.infer<typeof UpdatePitchPackRequestSchema>;
+export type ApproveDeckOutlineRequest = z.infer<typeof ApproveDeckOutlineRequestSchema>;
+export type RenderLaunchDeckRequest = z.infer<typeof RenderLaunchDeckRequestSchema>;
 
 export const pitchPackJsonSchema = {
   type: "object",
