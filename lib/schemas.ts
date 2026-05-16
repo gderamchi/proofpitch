@@ -288,6 +288,15 @@ export const RenderLaunchDeckRequestSchema = z.object({
   launchPack: LaunchPackSchema.optional(),
 });
 
+export const RenderLaunchVideoRequestSchema = z
+  .object({
+    captureSite: z.boolean().default(true),
+    dryRun: z.boolean().default(false),
+    renderDeck: z.literal(false).optional(),
+    renderVideo: z.literal(true),
+  })
+  .strict();
+
 export const CreateProjectRequestSchema = z.object({
   name: z.string().min(1).max(140),
   defaultUrl: z.preprocess(
@@ -341,6 +350,7 @@ export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
 export type UpdatePitchPackRequest = z.infer<typeof UpdatePitchPackRequestSchema>;
 export type ApproveDeckOutlineRequest = z.infer<typeof ApproveDeckOutlineRequestSchema>;
 export type RenderLaunchDeckRequest = z.infer<typeof RenderLaunchDeckRequestSchema>;
+export type RenderLaunchVideoRequest = z.infer<typeof RenderLaunchVideoRequestSchema>;
 
 export const pitchPackJsonSchema = {
   type: "object",
