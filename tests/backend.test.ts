@@ -978,6 +978,41 @@ describe("local backend flow", () => {
     expect(renderBody.pitchDeck.renderState).toBe("queued");
   });
 
+  it("does not allow public video render requests to force rendering or supply fallback launch packs", async () => {
+    const { POST: render } = await import("../app/api/launch-packs/[id]/render/route");
+
+    const forcedResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          force: true,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(forcedResponse.status).toBe(400);
+
+    const fallbackResponse = await render(
+      new Request("https://proofpitch.test/api/launch-packs/missing/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          captureSite: true,
+          renderDeck: false,
+          renderVideo: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(fallbackResponse.status).toBe(404);
+  });
+
   it("creates repeated local packs without quota blocking", async () => {
     const service = await import("../lib/pitch-pack-service");
     const input = {

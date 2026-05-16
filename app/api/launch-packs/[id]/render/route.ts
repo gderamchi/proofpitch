@@ -5,7 +5,7 @@ import { ZodError, z } from "zod";
 
 import { getLaunchPackDetail, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
 import { renderReleaseArtifacts } from "@/lib/release-renderer";
-import { RenderLaunchDeckRequestSchema } from "@/lib/schemas";
+import { RenderLaunchDeckRequestSchema, RenderLaunchVideoRequestSchema } from "@/lib/schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -15,6 +15,8 @@ type RouteContext = {
     id: string;
   }>;
 };
+
+const LAUNCH_PACK_ID_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 async function uploadRenderedVideo(launchPackId: string, videoPath: string) {
   if (!hasSupabaseAdminEnv()) {
@@ -51,9 +53,13 @@ async function uploadRenderedVideo(launchPackId: string, videoPath: string) {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+
+    if (!LAUNCH_PACK_ID_PATTERN.test(id)) {
+      return NextResponse.json({ error: "Invalid release pack id." }, { status: 400 });
+    }
+
     const body = await request.json().catch(() => ({}));
-    const videoRenderRequested =
-      body.renderVideo !== undefined || body.renderDeck !== undefined || body.captureSite !== undefined || body.force !== undefined;
+    const videoRenderRequested = body.renderVideo === true;
 
     if (!videoRenderRequested) {
       const input = RenderLaunchDeckRequestSchema.parse(body);
@@ -70,10 +76,11 @@ export async function POST(request: Request, context: RouteContext) {
       });
     }
 
+    const input = RenderLaunchVideoRequestSchema.parse(body);
     const detail = await getLaunchPackDetail(id);
-    const launchPack = detail?.launchPack ?? body.launchPack;
+    const launchPack = detail?.launchPack;
 
-    if (!launchPack || launchPack.id !== id) {
+    if (!launchPack) {
       return NextResponse.json({ error: "Release pack not found." }, { status: 404 });
     }
 
@@ -82,11 +89,10 @@ export async function POST(request: Request, context: RouteContext) {
       launchPackId: id,
       pitchDeck: launchPack.pitchDeck,
       demoVideo: launchPack.demoVideo,
-      captureSite: body.captureSite !== false,
-      dryRun: body.dryRun === true,
-      force: body.force === true,
-      renderDeck: body.renderDeck === true,
-      renderVideo: body.renderVideo !== false,
+      captureSite: input.captureSite,
+      dryRun: input.dryRun,
+      renderDeck: false,
+      renderVideo: true,
     });
     const videoArtifact = result.artifacts.find((artifact) => artifact.type === "video" && artifact.status === "ready");
     const uploadedVideoUrl = videoArtifact ? await uploadRenderedVideo(id, videoArtifact.path) : null;

@@ -92,7 +92,7 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
 When enabled, the renderer can export the Slidev deck and render a Remotion MP4 from `demoVideo.renderProps`.
-The interactive UI render action may force a local video render for the selected launch pack; direct helper usage remains opt-in through the environment flag.
+The interactive UI render action may request a local video render for the selected launch pack, but the public route must not accept request-controlled `force` flags or fallback `launchPack` bodies for video capture. Video rendering must use a launch pack already available through the server-side lookup.
 
 When local rendering is disabled, `/api/launch-packs/:id/render` must return `200`, keep `pitchDeck.renderState: "queued"`, and report `render.enabled: false`. It must not return a sign-in requirement.
 
