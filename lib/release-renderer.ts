@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { captureWebsiteScreenshots } from "./demo-video-capture";
@@ -10,6 +10,7 @@ type RenderReleaseArtifactsInput = {
   pitchDeck: PitchDeck;
   demoVideo: DemoVideo;
   captureSite?: boolean;
+  baseUrl?: string;
   dryRun?: boolean;
   force?: boolean;
   renderDeck?: boolean;
@@ -45,6 +46,18 @@ export function renderedDemoVideoUrl(launchPackId: string) {
   return `/api/launch-packs/${encodeURIComponent(launchPackId)}/video`;
 }
 
+export function renderedBrowserRecordingPath(launchPackId: string) {
+  return path.join(outputDirForLaunchPack(launchPackId), "browser-recording.webm");
+}
+
+export function renderedBrowserRecordingUrl(launchPackId: string) {
+  return `/api/launch-packs/${encodeURIComponent(launchPackId)}/recording`;
+}
+
+function absoluteUrl(baseUrl: string | undefined, urlPath: string) {
+  return new URL(urlPath, baseUrl || "http://localhost:3000").toString();
+}
+
 function commandLine(command: string, args: string[]) {
   return [command, ...args.map((arg) => (arg.includes(" ") ? JSON.stringify(arg) : arg))].join(" ");
 }
@@ -78,6 +91,7 @@ async function withCapturedScreenshots(
   outputDir: string,
   renderProps: RemotionRenderProps,
   captureSite: boolean,
+  baseUrl?: string,
 ) {
   if (!captureSite) {
     return renderProps;
@@ -90,8 +104,15 @@ async function withCapturedScreenshots(
     sourceUrl: renderProps.sourceUrl,
   });
 
+  const recordingPath = capture.recordingPath ? renderedBrowserRecordingPath(launchPackId) : undefined;
+
+  if (capture.recordingPath && recordingPath) {
+    await copyFile(capture.recordingPath, recordingPath);
+  }
+
   return {
     ...renderProps,
+    browserRecordingUrl: recordingPath ? absoluteUrl(baseUrl, renderedBrowserRecordingUrl(launchPackId)) : undefined,
     screenshots: capture.screenshots,
     demoSteps: capture.steps.length ? capture.steps : renderProps.demoSteps,
     captions: [
@@ -102,6 +123,7 @@ async function withCapturedScreenshots(
 }
 
 export async function renderReleaseArtifacts({
+  baseUrl,
   launchPackId,
   pitchDeck,
   demoVideo,
@@ -197,6 +219,7 @@ export async function renderReleaseArtifacts({
         outputDir,
         demoVideo.renderProps as RemotionRenderProps,
         captureSite,
+        baseUrl,
       );
 
       await writeFile(propsPath, JSON.stringify(renderProps, null, 2), "utf8");

@@ -113,9 +113,11 @@ function createRenderProps({
     sourceUrl: input.sourceUrl,
     demoPath: input.demoInstructions,
     screenshots: screenshots.map((screenshot) => ({
+      action: "capture",
       title: screenshot.title,
       url: screenshot.url,
       alt: screenshot.alt,
+      target: screenshot.title,
     })),
     demoSteps: [
       `Open ${input.productName} at ${input.sourceUrl}.`,

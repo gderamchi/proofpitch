@@ -22,6 +22,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const result = await renderReleaseArtifacts({
+      baseUrl: new URL(request.url).origin,
       launchPackId: id,
       pitchDeck: detail.launchPack.pitchDeck,
       demoVideo: detail.launchPack.demoVideo,
