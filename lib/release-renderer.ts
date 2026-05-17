@@ -335,8 +335,12 @@ async function runCommand(command: string, args: string[], cwd = process.cwd()) 
         ...writableNpmEnv,
       },
     });
+    let stdout = "";
     let stderr = "";
 
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
     });
@@ -347,7 +351,7 @@ async function runCommand(command: string, args: string[], cwd = process.cwd()) 
         return;
       }
 
-      reject(new Error(stderr.trim() || `${command} exited with code ${code}`));
+      reject(new Error([stderr.trim(), stdout.trim()].filter(Boolean).join("\n") || `${command} exited with code ${code}`));
     });
   });
 }
