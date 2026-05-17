@@ -797,6 +797,87 @@ async function generateHyperFramesWithOpenAI(renderSpec: HyperFramesRenderSpec):
   };
 }
 
+function fallbackHyperFramesGeneration(renderSpec: HyperFramesRenderSpec, reason: string): HyperFramesGeneration {
+  const captions = renderSpec.captions.length
+    ? renderSpec.captions.slice(0, 5)
+    : [`${renderSpec.productName}: generated demo video`, "Follow the clearest public product workflow."];
+  const captionMarkup = captions
+    .map((caption, index) => {
+      const start = 2 + index * 3.2;
+
+      return `<div id="caption-${index + 1}" class="clip caption" data-start="${start.toFixed(1)}" data-duration="2.8" data-track-index="8">${escapeXml(caption)}</div>`;
+    })
+    .join("\n      ");
+  const stepMarkup = renderSpec.demoSteps
+    .slice(0, 4)
+    .map((step) => `<li>${escapeXml(step)}</li>`)
+    .join("");
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeXml(renderSpec.productName)} demo video</title>
+    <script src="${ALLOWED_GSAP_SCRIPT_URL}"></script>
+    <style>
+      :root { color-scheme: light; font-family: Inter, Arial, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #e9f4ef; color: #10201b; }
+      main { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #e9f4ef; }
+      .stage { position: absolute; inset: 64px; border: 3px solid #10201b; background: #fffdf7; padding: 54px; }
+      .brand { font-size: 34px; font-weight: 800; letter-spacing: 0; color: #0f766e; }
+      .headline { max-width: 1260px; margin: 64px 0 0; font-size: 84px; line-height: 0.98; font-weight: 900; letter-spacing: 0; }
+      .url { margin-top: 26px; font-size: 30px; color: #475569; }
+      .panel { position: absolute; left: 108px; right: 108px; top: 332px; border: 3px solid #10201b; background: #f8fffb; padding: 34px; }
+      .panel h2 { margin: 0 0 24px; font-size: 42px; letter-spacing: 0; }
+      .panel ol { margin: 0; padding-left: 42px; font-size: 30px; line-height: 1.42; }
+      .panel li { margin: 14px 0; }
+      .final { position: absolute; left: 108px; right: 108px; bottom: 108px; border: 3px solid #10201b; background: #ccfbf1; padding: 34px; font-size: 34px; font-weight: 800; }
+      .caption { position: absolute; left: 108px; right: 108px; bottom: 48px; min-height: 64px; border: 2px solid #10201b; background: #10201b; color: #fffdf7; padding: 16px 22px; font-size: 28px; line-height: 1.12; }
+      .note { position: absolute; right: 108px; top: 108px; max-width: 520px; color: #475569; font-size: 22px; line-height: 1.25; text-align: right; }
+    </style>
+  </head>
+  <body>
+    <main data-composition-id="proofpitch-product-demo" data-start="0" data-duration="24" data-width="1920" data-height="1080">
+      <section id="scene-intro" class="clip stage" data-start="0" data-duration="6" data-track-index="1">
+        <div class="brand">ProofPitch demo video</div>
+        <h1 class="headline">${escapeXml(renderSpec.productName)}</h1>
+        <div class="url">${escapeXml(renderSpec.sourceUrl)}</div>
+      </section>
+      <section id="scene-workflow" class="clip panel" data-start="6.2" data-duration="8.8" data-track-index="1">
+        <h2>Generated product walkthrough</h2>
+        <ol>${stepMarkup}</ol>
+      </section>
+      <section id="scene-final" class="clip final" data-start="15.4" data-duration="7.8" data-track-index="1">
+        MP4 video rendered with captions and optional voiceover.
+      </section>
+      <div id="fallback-note" class="clip note" data-start="0" data-duration="23.8" data-track-index="2">${escapeXml(reason)}</div>
+      ${captionMarkup}
+    </main>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#scene-intro", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6 }, 0);
+      tl.fromTo("#scene-workflow", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6 }, 6.2);
+      tl.fromTo("#scene-final", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6 }, 15.4);
+      window.__timelines["proofpitch-product-demo"] = tl;
+    </script>
+  </body>
+</html>`;
+  const secureHtml = withHyperFramesSecurityPolicy(html);
+
+  assertSafeHyperFramesHtml(secureHtml);
+
+  return {
+    compositionHtml: secureHtml,
+    demoSteps: renderSpec.demoSteps,
+    captions,
+    designNotes: "Deterministic ProofPitch fallback composition used after generated HyperFrames HTML failed validation.",
+    researchSummary: [renderSpec.researchSummary, `Fallback reason: ${reason}`].filter(Boolean).join("\n"),
+    durationSeconds: 24,
+  };
+}
+
 async function writeHyperFramesProject({
   generated,
   projectDir,
@@ -932,6 +1013,14 @@ export async function synthesizeVoiceoverForDemo({
   }
 }
 
+async function runHyperFramesQualityGate(hyperframes: string, projectDir: string) {
+  await runCommand(process.execPath, [hyperframes, "lint"], projectDir);
+  await runCommand(process.execPath, [hyperframes, "validate"], projectDir);
+  if (shouldInspectHyperFramesLayout()) {
+    await runCommand(process.execPath, [hyperframes, "inspect"], projectDir);
+  }
+}
+
 async function renderDemoVideoWithHyperFrames({
   outputDir,
   renderSpec,
@@ -943,7 +1032,7 @@ async function renderDemoVideoWithHyperFrames({
   videoPath: string;
   voiceoverPath?: string;
 }) {
-  const generated = renderSpec.compositionHtml
+  let generated = renderSpec.compositionHtml
     ? {
         compositionHtml: withHyperFramesSecurityPolicy(renderSpec.compositionHtml),
         demoSteps: renderSpec.demoSteps,
@@ -973,10 +1062,18 @@ async function renderDemoVideoWithHyperFrames({
 
   const hyperframes = hyperframesCliPath();
 
-  await runCommand(process.execPath, [hyperframes, "lint"], projectDir);
-  await runCommand(process.execPath, [hyperframes, "validate"], projectDir);
-  if (shouldInspectHyperFramesLayout()) {
-    await runCommand(process.execPath, [hyperframes, "inspect"], projectDir);
+  try {
+    await runHyperFramesQualityGate(hyperframes, projectDir);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.replace(/\s+/g, " ").slice(0, 240) : "Generated HyperFrames HTML failed validation.";
+    generated = fallbackHyperFramesGeneration(renderSpec, reason);
+    await rm(projectDir, { recursive: true, force: true });
+    await writeHyperFramesProject({
+      generated,
+      projectDir,
+      renderSpec,
+    });
+    await runHyperFramesQualityGate(hyperframes, projectDir);
   }
   await runCommand(process.execPath, [hyperframes, "render", "--output", rawVideoPath, "--quality", "standard", "--workers", "1"], projectDir);
 
