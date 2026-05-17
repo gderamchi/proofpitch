@@ -245,7 +245,28 @@ async function getChromium() {
   const { chromium } = await import("playwright-chromium");
 
   return chromium as {
-    launch: (options: { headless: boolean }) => Promise<PlaywrightBrowser>;
+    launch: (options: { args?: string[]; executablePath?: string; headless: boolean }) => Promise<PlaywrightBrowser>;
+  };
+}
+
+const DEFAULT_CHROMIUM_PACK_URL =
+  "https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar";
+
+function chromiumPackUrl() {
+  return process.env.SPARTICUZ_CHROMIUM_PACK_URL ?? process.env.PROOFPITCH_CHROMIUM_PACK_URL ?? DEFAULT_CHROMIUM_PACK_URL;
+}
+
+async function chromiumLaunchOptions() {
+  if (process.env.VERCEL !== "1" || process.platform !== "linux") {
+    return { headless: true };
+  }
+
+  const { default: serverlessChromium } = await import("@sparticuz/chromium-min");
+
+  return {
+    args: serverlessChromium.args,
+    executablePath: await serverlessChromium.executablePath(chromiumPackUrl()),
+    headless: true,
   };
 }
 
@@ -802,7 +823,7 @@ export async function captureWebsiteScreenshots({
   await mkdir(recordingDir, { recursive: true });
 
   const chromium = await getChromium();
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(await chromiumLaunchOptions());
   const context = await browser.newContext({
     deviceScaleFactor: 1,
     recordVideo: { dir: recordingDir, size: { width: 1440, height: 1000 } },

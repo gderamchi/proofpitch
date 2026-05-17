@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { readdirSync, statSync } from "node:fs";
+import { chmod, copyFile, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -96,6 +97,21 @@ const HYPERFRAMES_CONTENT_SECURITY_POLICY = [
   "form-action 'none'",
   "worker-src 'none'",
 ].join("; ");
+const SERVERLESS_HYPERFRAMES_ENV = {
+  PRODUCER_BROWSER_GPU_MODE: "software",
+  PRODUCER_DISABLE_GPU: "true",
+  PRODUCER_ENABLE_BROWSER_POOL: "false",
+  PRODUCER_FORCE_SCREENSHOT: "true",
+  PRODUCER_MAX_WORKERS: "1",
+  PRODUCER_PUPPETEER_LAUNCH_TIMEOUT_MS: "120000",
+  PUPPETEER_SKIP_DOWNLOAD: "true",
+};
+const DEFAULT_CHROMIUM_PACK_URL =
+  "https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar";
+
+let cachedHyperFramesRuntimeEnv: Promise<Record<string, string>> | undefined;
+
+type RuntimeBinaryName = "ffmpeg";
 
 function safeProjectStorageId(projectId: string) {
   if (!PROJECT_STORAGE_ID_PATTERN.test(projectId)) {
@@ -143,8 +159,178 @@ function renderWorkerEnabled() {
   return process.env.PROOFPITCH_ENABLE_LOCAL_RENDER === "1" || process.env.VERCEL === "1";
 }
 
-function hyperframesCommand() {
-  return path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "hyperframes.cmd" : "hyperframes");
+function hyperframesCliPath() {
+  return path.join(process.cwd(), "node_modules", "hyperframes", "dist", "cli.js");
+}
+
+function shouldInspectHyperFramesLayout() {
+  return process.env.VERCEL !== "1" || process.env.PROOFPITCH_INSPECT_HYPERFRAMES_IN_SERVERLESS === "1";
+}
+
+function chromiumPackUrl() {
+  return process.env.SPARTICUZ_CHROMIUM_PACK_URL ?? process.env.PROOFPITCH_CHROMIUM_PACK_URL ?? DEFAULT_CHROMIUM_PACK_URL;
+}
+
+function executableName(binary: RuntimeBinaryName) {
+  return process.platform === "win32" ? `${binary}.exe` : binary;
+}
+
+function fileExists(filePath: string) {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function prependRuntimePath(runtimeEnv: Record<string, string>, ...entries: Array<string | undefined>) {
+  const currentPath = runtimeEnv.PATH ?? process.env.PATH ?? "";
+  const ordered = [...entries.filter(Boolean), ...currentPath.split(path.delimiter)].filter(Boolean) as string[];
+  const unique = [...new Set(ordered)];
+
+  runtimeEnv.PATH = unique.join(path.delimiter);
+}
+
+function readDirectoryNames(directory: string) {
+  try {
+    return readdirSync(directory);
+  } catch {
+    return [];
+  }
+}
+
+function staticPackageBinaryCandidates(binary: RuntimeBinaryName, packageName: string) {
+  const name = executableName(binary);
+  const moduleRoots = [
+    path.join(process.cwd(), "node_modules"),
+    path.join(process.cwd(), ".next", "node_modules"),
+  ];
+  const candidates = moduleRoots.flatMap((moduleRoot) => {
+    const exactPackageRoot = path.join(moduleRoot, packageName);
+    const tracedPackageRoots = readDirectoryNames(moduleRoot)
+      .filter((entry) => entry === packageName || entry.startsWith(`${packageName}-`))
+      .map((entry) => path.join(moduleRoot, entry));
+
+    return [exactPackageRoot, ...tracedPackageRoots].flatMap((packageRoot) => [
+      path.join(packageRoot, name),
+      path.join(packageRoot, "bin", process.platform, os.arch(), name),
+    ]);
+  });
+
+  return [...new Set(candidates)];
+}
+
+function exportedBinaryPath(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+
+  if (typeof record?.path === "string") {
+    return record.path;
+  }
+
+  if (record && "default" in record) {
+    return exportedBinaryPath(record.default);
+  }
+
+  return undefined;
+}
+
+function findStaticPackageBinary(binary: RuntimeBinaryName, packageName: string, exportedPath?: string) {
+  for (const candidate of [exportedPath, ...staticPackageBinaryCandidates(binary, packageName)]) {
+    if (candidate && fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+async function prepareRuntimeBinary({
+  binary,
+  exportedPath,
+  packageName,
+  runtimeEnv,
+}: {
+  binary: RuntimeBinaryName;
+  exportedPath?: string;
+  packageName: string;
+  runtimeEnv: Record<string, string>;
+}) {
+  const sourcePath = findStaticPackageBinary(binary, packageName, exportedPath);
+
+  if (!sourcePath) {
+    return;
+  }
+
+  const binDir = path.join(os.tmpdir(), "proofpitch-render-bin");
+  const runtimeBinaryPath = path.join(binDir, executableName(binary));
+
+  await mkdir(binDir, { recursive: true });
+  await rm(runtimeBinaryPath, { force: true }).catch(() => undefined);
+  await symlink(sourcePath, runtimeBinaryPath).catch(async () => {
+    await copyFile(sourcePath, runtimeBinaryPath);
+  });
+  await chmod(runtimeBinaryPath, 0o755).catch(() => undefined);
+
+  runtimeEnv.FFMPEG_BIN = runtimeBinaryPath;
+
+  if (process.platform !== "win32") {
+    const whichPath = path.join(binDir, "which");
+    await writeFile(
+      whichPath,
+      [
+        "#!/bin/sh",
+        "status=0",
+        "for cmd in \"$@\"; do",
+        "  resolved=$(command -v \"$cmd\") || status=1",
+        "  if [ -n \"$resolved\" ]; then",
+        "    printf '%s\\n' \"$resolved\"",
+        "  fi",
+        "done",
+        "exit \"$status\"",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await chmod(whichPath, 0o755).catch(() => undefined);
+  }
+
+  prependRuntimePath(runtimeEnv, binDir, path.dirname(sourcePath));
+}
+
+async function resolveHyperFramesRuntimeEnv() {
+  const runtimeEnv: Record<string, string> = {};
+
+  try {
+    await prepareRuntimeBinary({
+      binary: "ffmpeg",
+      exportedPath: exportedBinaryPath(await import("ffmpeg-static")),
+      packageName: "ffmpeg-static",
+      runtimeEnv,
+    });
+  } catch {
+    // Fall back to the platform PATH. HyperFrames will surface a clear ffmpeg error if unavailable.
+  }
+
+  if (process.env.VERCEL === "1" && process.platform === "linux") {
+    const { default: chromium } = await import("@sparticuz/chromium-min");
+    const executablePath = await chromium.executablePath(chromiumPackUrl());
+
+    runtimeEnv.HYPERFRAMES_BROWSER_PATH = executablePath;
+    runtimeEnv.PRODUCER_HEADLESS_SHELL_PATH = executablePath;
+    Object.assign(runtimeEnv, SERVERLESS_HYPERFRAMES_ENV);
+  }
+
+  return runtimeEnv;
+}
+
+function hyperFramesRuntimeEnv() {
+  cachedHyperFramesRuntimeEnv ??= resolveHyperFramesRuntimeEnv();
+
+  return cachedHyperFramesRuntimeEnv;
 }
 
 function escapeXml(value: string) {
@@ -317,6 +503,27 @@ function assertSafeHyperFramesHtml(html: string) {
   assertSafeHyperFramesResources(html);
 }
 
+function ensureHyperFramesCompositionRoot(html: string, durationSeconds: number) {
+  if (html.includes("data-composition-id")) {
+    return html;
+  }
+
+  const duration = Math.max(1, Math.min(600, Math.round(durationSeconds || 24)));
+
+  return html.replace(/<(main|section|div)\b([^>]*)>/i, (match, tag: string, rawAttributes: string) => {
+    const attributes = rawAttributes || "";
+    const additions = [
+      'data-composition-id="proofpitch-product-demo"',
+      attributes.includes("data-start=") ? "" : 'data-start="0"',
+      attributes.includes("data-duration=") ? "" : `data-duration="${duration}"`,
+      attributes.includes("data-width=") ? "" : 'data-width="1920"',
+      attributes.includes("data-height=") ? "" : 'data-height="1080"',
+    ].filter(Boolean);
+
+    return `<${tag}${attributes} ${additions.join(" ")}>`;
+  });
+}
+
 async function runCommand(command: string, args: string[], cwd = process.cwd()) {
   const writableNpmEnv = process.env.VERCEL
     ? {
@@ -327,6 +534,7 @@ async function runCommand(command: string, args: string[], cwd = process.cwd()) 
         npm_config_update_notifier: "false",
       }
     : {};
+  const runtimeEnv = await hyperFramesRuntimeEnv();
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
@@ -336,6 +544,7 @@ async function runCommand(command: string, args: string[], cwd = process.cwd()) 
       env: {
         ...process.env,
         ...writableNpmEnv,
+        ...runtimeEnv,
       },
     });
     let stdout = "";
@@ -390,7 +599,9 @@ export async function prepareHyperFramesRenderSpec(
     };
   }
 
-  const recordingPath = capture.recordingPath ? renderedBrowserRecordingPath(projectId) : undefined;
+  const canAttachBrowserRecording =
+    process.env.VERCEL !== "1" || process.env.PROOFPITCH_RENDER_BROWSER_RECORDING_IN_SERVERLESS === "1";
+  const recordingPath = capture.recordingPath && canAttachBrowserRecording ? renderedBrowserRecordingPath(projectId) : undefined;
 
   if (capture.recordingPath && recordingPath) {
     await copyFile(capture.recordingPath, recordingPath);
@@ -529,7 +740,8 @@ async function generateHyperFramesWithOpenAI(renderSpec: HyperFramesRenderSpec):
   }
 
   const generated = JSON.parse(outputText) as HyperFramesGeneration;
-  const secureHtml = withHyperFramesSecurityPolicy(generated.compositionHtml);
+  const normalizedHtml = ensureHyperFramesCompositionRoot(generated.compositionHtml, generated.durationSeconds);
+  const secureHtml = withHyperFramesSecurityPolicy(normalizedHtml);
 
   assertSafeHyperFramesHtml(secureHtml);
 
@@ -713,12 +925,14 @@ async function renderDemoVideoWithHyperFrames({
     await copyFile(recordingPath, path.join(projectDir, "assets", "browser-recording.webm")).catch(() => undefined);
   }
 
-  const hyperframes = hyperframesCommand();
+  const hyperframes = hyperframesCliPath();
 
-  await runCommand(hyperframes, ["lint"], projectDir);
-  await runCommand(hyperframes, ["validate"], projectDir);
-  await runCommand(hyperframes, ["inspect"], projectDir);
-  await runCommand(hyperframes, ["render", "--output", rawVideoPath, "--quality", "standard", "--workers", "1"], projectDir);
+  await runCommand(process.execPath, [hyperframes, "lint"], projectDir);
+  await runCommand(process.execPath, [hyperframes, "validate"], projectDir);
+  if (shouldInspectHyperFramesLayout()) {
+    await runCommand(process.execPath, [hyperframes, "inspect"], projectDir);
+  }
+  await runCommand(process.execPath, [hyperframes, "render", "--output", rawVideoPath, "--quality", "standard", "--workers", "1"], projectDir);
 
   if (voiceoverPath) {
     await runCommand("ffmpeg", [
@@ -770,19 +984,18 @@ export async function renderDemoVideoArtifacts({
   const outputDir = outputDirForDemoVideo(projectId);
   const specPath = path.join(outputDir, "hyperframes-spec.json");
   const videoPath = renderedDemoVideoPath(projectId);
-  const hyperframes = hyperframesCommand();
   const renderSpecExists = Boolean(demoVideo.renderSpec);
   const voiceoverCommand = process.env.GRADIUM_API_KEY && process.env.GRADIUM_VOICE_ID
     ? "POST https://api.gradium.ai/api/post/speech/tts"
     : "captions-only voiceover fallback";
   const commands = renderSpecExists
-    ? [
-        voiceoverCommand,
-        commandLine(hyperframes, ["lint"]),
-        commandLine(hyperframes, ["validate"]),
-        commandLine(hyperframes, ["inspect"]),
-        commandLine(hyperframes, ["render", "--output", videoPath, "--quality", "standard", "--workers", "1"]),
-      ]
+      ? [
+          voiceoverCommand,
+          commandLine("hyperframes", ["lint"]),
+          commandLine("hyperframes", ["validate"]),
+          ...(shouldInspectHyperFramesLayout() ? [commandLine("hyperframes", ["inspect"])] : []),
+          commandLine("hyperframes", ["render", "--output", videoPath, "--quality", "standard", "--workers", "1"]),
+        ]
     : [];
   const artifacts: RenderArtifact[] = renderSpecExists
     ? [

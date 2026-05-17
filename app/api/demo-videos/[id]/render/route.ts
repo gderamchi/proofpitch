@@ -34,6 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({
       project: result.project,
       render: result.render,
+      uploadWarnings: result.uploadWarnings,
       videoUrl: result.videoUrl,
     });
   } catch (error) {

@@ -59,11 +59,12 @@ Behavior:
 - Rendering is enabled only when `PROOFPITCH_ENABLE_LOCAL_RENDER=1` or the Vercel runtime flag is present.
 - Gradium TTS is attempted only when `GRADIUM_API_KEY` and `GRADIUM_VOICE_ID` exist.
 - Missing Gradium configuration returns `voiceover.status = "captions_only"` and keeps the MP4 path valid.
-- Rendered assets are uploaded to `proofpitch-exports` when Supabase admin storage is configured.
+- Rendered assets are uploaded to `proofpitch-exports` when Supabase admin storage is configured. If the MP4 exists but an upload fails, the response remains successful with `uploadWarnings` and the local API video URL is used as a fallback.
+- The export bucket accepts `video/mp4` and `audio/wav`; the render service self-heals missing MIME allow-list entries before retrying an upload.
 
 ## `GET /api/demo-videos/:id/video`
 
-Serves a locally rendered `demo-video.mp4`.
+Serves a locally rendered `demo-video.mp4`, then falls back to the private Supabase export object when local serverless storage does not have the file.
 
 ## `GET /api/demo-videos/:id/recording`
 

@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
-
 const renderRouteIncludes = [
-  "./node_modules/.bin/hyperframes",
   "./node_modules/adm-zip/**/*",
   "./node_modules/agent-base/**/*",
   "./node_modules/ansi-regex/**/*",
@@ -11,6 +9,7 @@ const renderRouteIncludes = [
   "./node_modules/@hono/**/*",
   "./node_modules/@img/**/*",
   "./node_modules/@puppeteer/**/*",
+  "./node_modules/@sparticuz/chromium-min/**/*",
   "./node_modules/@tootallnate/quickjs-emscripten/**/*",
   "./node_modules/b4a/**/*",
   "./node_modules/bare-events/**/*",
@@ -43,13 +42,21 @@ const renderRouteIncludes = [
   "./node_modules/extract-zip/**/*",
   "./node_modules/fast-fifo/**/*",
   "./node_modules/fd-slicer/**/*",
+  "./node_modules/ffmpeg-static/**/*",
   "./node_modules/get-caller-file/**/*",
   "./node_modules/get-stream/**/*",
   "./node_modules/get-uri/**/*",
   "./node_modules/giget/**/*",
   "./node_modules/hono/**/*",
   "./node_modules/http-proxy-agent/**/*",
-  "./node_modules/hyperframes/**/*",
+  "./node_modules/hyperframes/dist/commands/*.browser.js",
+  "./node_modules/hyperframes/dist/cli.js",
+  "./node_modules/hyperframes/dist/hyperframe.manifest.json",
+  "./node_modules/hyperframes/dist/hyperframe.runtime.iife.js",
+  "./node_modules/hyperframes/dist/hyperframe-runtime.js",
+  "./node_modules/hyperframes/node_modules/@esbuild/linux-x64/**/*",
+  "./node_modules/hyperframes/node_modules/esbuild/**/*",
+  "./node_modules/hyperframes/package.json",
   "./node_modules/https-proxy-agent/**/*",
   "./node_modules/ip-address/**/*",
   "./node_modules/is-fullwidth-code-point/**/*",
@@ -99,16 +106,28 @@ const renderRouteIncludes = [
   "./node_modules/yargs/**/*",
   "./node_modules/yargs-parser/**/*",
   "./node_modules/zod/**/*",
-  "./hyperframes/**/*",
 ];
 const renderRouteExcludes = [
+  "./hyperframes/**/*",
+  "./node_modules/**/*.d.cts",
+  "./node_modules/**/*.d.mts",
+  "./node_modules/**/*.d.ts",
+  "./node_modules/**/*.map",
+  "./node_modules/**/CHANGELOG*",
+  "./node_modules/**/LICENSE*",
+  "./node_modules/**/README*",
   "./node_modules/lightningcss-linux-x64-musl/**/*",
 ];
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   devIndicators: false,
-  serverExternalPackages: ["hyperframes", "sharp"],
+  serverExternalPackages: [
+    "@sparticuz/chromium-min",
+    "ffmpeg-static",
+    "hyperframes",
+    "sharp",
+  ],
   outputFileTracingIncludes: {
     "/api/demo-videos/\\[id\\]/render": renderRouteIncludes,
     "/api/demo-videos/[id]/render": renderRouteIncludes,

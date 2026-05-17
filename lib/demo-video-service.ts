@@ -19,6 +19,15 @@ import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "./supabase/serve
 import { getOptionalSupabaseContext, type SupabaseContext } from "./account-service";
 
 const HYPERFRAMES_COMPOSITION_ID = "proofpitch-product-demo";
+const EXPORT_BUCKET = "proofpitch-exports";
+const DEFAULT_EXPORT_CONTENT_TYPES = [
+  "application/pdf",
+  "text/markdown;charset=utf-8",
+  "text/markdown",
+  "text/plain",
+  "video/mp4",
+  "audio/wav",
+];
 
 type DemoVideoProjectDetail = {
   project: DemoVideoProject;
@@ -440,11 +449,19 @@ async function uploadRenderedAsset({
 
   const bytes = await readFile(localPath);
   const storagePath = `demo-videos/${projectId}/${storageName}`;
-  const bucket = admin.storage.from("proofpitch-exports");
-  const { error: uploadError } = await bucket.upload(storagePath, bytes, {
+  const bucket = admin.storage.from(EXPORT_BUCKET);
+  let { error: uploadError } = await bucket.upload(storagePath, bytes, {
     contentType,
     upsert: true,
   });
+
+  if (isUnsupportedMimeError(uploadError, contentType)) {
+    await ensureExportMimeTypeAllowed(admin, contentType);
+    ({ error: uploadError } = await bucket.upload(storagePath, bytes, {
+      contentType,
+      upsert: true,
+    }));
+  }
 
   if (uploadError) {
     throw new Error(`${storageName} rendered but upload failed: ${uploadError.message}`);
@@ -457,6 +474,40 @@ async function uploadRenderedAsset({
   }
 
   return data.signedUrl;
+}
+
+function isUnsupportedMimeError(error: { message?: string } | null, contentType: string) {
+  return Boolean(error?.message?.toLowerCase().includes(`mime type ${contentType.toLowerCase()} is not supported`));
+}
+
+async function ensureExportMimeTypeAllowed(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  contentType: string,
+) {
+  const { data } = await admin.storage.getBucket(EXPORT_BUCKET);
+  const bucket = data as Record<string, unknown> | null;
+  const rawAllowedTypes = bucket?.allowed_mime_types ?? bucket?.allowedMimeTypes;
+
+  if (rawAllowedTypes === null) {
+    return;
+  }
+
+  const allowedTypes = Array.isArray(rawAllowedTypes)
+    ? rawAllowedTypes.filter((item): item is string => typeof item === "string")
+    : DEFAULT_EXPORT_CONTENT_TYPES;
+
+  if (allowedTypes.includes(contentType)) {
+    return;
+  }
+
+  const { error } = await admin.storage.updateBucket(EXPORT_BUCKET, {
+    public: false,
+    allowedMimeTypes: [...allowedTypes, contentType],
+  });
+
+  if (error) {
+    throw new Error(`Export bucket update failed for ${contentType}: ${error.message}`);
+  }
 }
 
 export async function startDemoVideoRender(
@@ -483,22 +534,36 @@ export async function startDemoVideoRender(
   });
   const videoArtifact = result.artifacts.find((artifact) => artifact.type === "video" && artifact.status === "ready");
   const voiceoverArtifact = result.artifacts.find((artifact) => artifact.type === "voiceover" && artifact.status === "ready");
-  const uploadedVideoUrl = videoArtifact
-    ? await uploadRenderedAsset({
+  const uploadWarnings: string[] = [];
+  let uploadedVideoUrl: string | null = null;
+  let uploadedVoiceoverUrl: string | null = null;
+
+  if (videoArtifact) {
+    try {
+      uploadedVideoUrl = await uploadRenderedAsset({
         contentType: "video/mp4",
         localPath: videoArtifact.path,
         projectId: id,
         storageName: "demo-video.mp4",
-      })
-    : null;
-  const uploadedVoiceoverUrl = voiceoverArtifact
-    ? await uploadRenderedAsset({
+      });
+    } catch (error) {
+      uploadWarnings.push(error instanceof Error ? error.message : "demo-video.mp4 rendered but upload failed.");
+    }
+  }
+
+  if (voiceoverArtifact) {
+    try {
+      uploadedVoiceoverUrl = await uploadRenderedAsset({
         contentType: "audio/wav",
         localPath: voiceoverArtifact.path,
         projectId: id,
         storageName: "voiceover.wav",
-      })
-    : null;
+      });
+    } catch (error) {
+      uploadWarnings.push(error instanceof Error ? error.message : "voiceover.wav rendered but upload failed.");
+    }
+  }
+
   const videoUrl = uploadedVideoUrl ?? result.videoUrl;
   const voiceoverAudioUrl = uploadedVoiceoverUrl ?? result.voiceover.audioUrl;
   const updated = DemoVideoProjectSchema.parse({
@@ -539,6 +604,7 @@ export async function startDemoVideoRender(
   return {
     project: updated,
     render: result,
+    uploadWarnings,
     videoUrl,
   };
 }
