@@ -1,68 +1,34 @@
-# ProofPitch PRD
+# Product Requirements
 
-## 1. Summary
+ProofPitch turns a product URL into a proof-aware demo video with optional voiceover.
 
-ProofPitch turns a product URL, short release context, and deck mode into a claim-gated Slidev pitch deck flow, product demo video state, and visible claim ledger. The MVP is intentionally narrow: one input flow, one generated pack, and no publishing or voice workflow.
+## Primary User Story
 
-## 2. Core Value
+As a founder or GTM operator, I enter the product URL and the demo goal. ProofPitch returns a reviewed brief, lets me accept the proof claims that may be narrated, then renders an MP4 demo video with Gradium voiceover when configured or captions-only fallback when not configured.
 
-Teams need launch material that is clear enough to reuse and conservative enough to trust. ProofPitch combines product context, external research, entity extraction, and structured generation so important claims are marked as supported, weak, unsupported, or user-provided.
+## In Scope
 
-## 3. Target Users
+- Product URL, product name, target audience, demo goal, and demo instructions.
+- Proof-aware `DemoBrief`.
+- Claim review that controls captions and voiceover script.
+- HyperFrames MP4 render path.
+- Gradium WAV TTS.
+- Captions-only fallback when Gradium env is missing.
+- Supabase persistence in `demo_video_projects`.
 
-- Founder-led B2B teams preparing customer calls, launches, or fundraising.
-- Product marketing leads packaging a product story.
-- Agencies or consultants creating first-pass positioning assets for clients.
+## Out of Scope
 
-## 4. Core Workflow
+- Presentation generation.
+- PDF export.
+- Markdown export.
+- Social copy drafts.
+- Usage quota screens.
+- Checkout or billing routes.
 
-1. User enters a public product URL.
-2. User adds product name, target audience, release goal, optional demo instructions, and deck mode (`investor`, `sales`, or `launch`).
-3. Tavily gathers source material when configured.
-4. Pioneer extracts entities and claim risk when configured.
-5. OpenAI generates a structured `PitchPack`.
-6. ProofPitch returns a `LaunchPack` with claim review, pending Slidev `pitchDeck`, and product-demo `demoVideo`.
-7. User approves non-unsupported claims before ProofPitch builds a structured `DeckOutline`.
-8. ProofPitch compiles the approved `DeckOutline` into deterministic Slidev markdown.
-9. User reviews a visual slide preview with thumbnails, screenshot cues from the captured product surface when available, and can download the underlying Slidev markdown as a secondary technical artifact.
-10. User starts PDF rendering from the approved outline. The endpoint never requires login; when no render worker is enabled, it keeps the deck queued and reports rendering as disabled.
-11. If product walkthrough capture is unavailable, `demoVideo` is explicitly pending or blocked.
+## Acceptance Criteria
 
-## 5. P0 Requirements
-
-- Compact landing page that fits the first screen on desktop.
-- Responsive generator form with no pricing, auth panel, provider strip, or scroll narrative.
-- Deck mode selector for investor, sales, and launch decks.
-- Claim approval gate before outline generation.
-- Visual 16:9 deck preview after outline approval, with slide navigation, thumbnail selection, and product screenshot cues where capture data exists.
-- Deterministic `DeckOutline` to Slidev Markdown compilation; the LLM must not output arbitrary Slidev/Vue.
-- `LaunchPack` schema containing only `pitchDeck`, `demoVideo`, `pitchPack`, screenshots, captions, checklist, and request metadata.
-- `PitchPack` schema with claim ledger, reusable pitch copy, risks, next steps, and provider usage.
-- `LaunchPack` response includes OpenAI, Tavily, and Pioneer provider status.
-- Provider contract limited to OpenAI, Tavily, and Pioneer.
-- Pioneer parser reads nested `raw.result.data.entities` and `claim_risk`.
-- Demo video must be real product capture metadata or an explicit blocked/pending state.
-- Missing provider keys must produce a useful deterministic pack instead of a blank state.
-
-## 6. Out Of Scope
-
-- Audio generation.
-- Voice input and transcription.
-- Generated media prompts.
-- External channel drafts.
-- Pricing presentation on the landing page.
-- Runtime login, paywall, or quota enforcement.
-- Slide video masquerading as a product demo.
-
-Gradium voiceover is a planned extension for the product-demo video only, not for replacing the product demo with a narrated slide deck.
-
-## 7. Success Criteria
-
-- A new user understands the workflow immediately on the first screen.
-- A valid minimal request to `/api/launch-packs` returns `pitchDeck`, `demoVideo`, `pitchPack`, and provider status only.
-- `/api/launch-packs/:id/outline` turns accepted claims into the Slidev outline and markdown.
-- Approved outlines are visible as slides, not only text summaries, and expose a Slidev markdown download.
-- `/api/launch-packs/:id/render` reports PDF render state without blocking anonymous users.
-- No MVP output contains audio scripts, generated media prompts, or external publishing metadata.
-- The deck is clearly separate from the demo video state.
-- Tests and production build pass.
+- The first screen is the demo-video workflow, not a marketing page.
+- The UI exposes proof review, render video, provider state, screenshots, captions, and final video preview.
+- Accepted claims appear in the narration script and captions.
+- Missing Gradium credentials do not fail rendering.
+- Removed product surfaces are not reachable from active routes.

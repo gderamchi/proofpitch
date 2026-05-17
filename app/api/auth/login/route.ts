@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
-import { getSessionPayload } from "@/lib/pitch-pack-service";
+import { getSessionPayload } from "@/lib/account-service";
 import { AuthCredentialsSchema } from "@/lib/schemas";
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 

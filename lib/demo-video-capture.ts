@@ -2,6 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ProductDemoScreenshot } from "./schemas";
+import { assertPublicHttpUrl } from "./public-url";
 
 type CaptureWebsiteScreenshotsInput = {
   outputDir: string;
@@ -30,6 +31,14 @@ type PlaywrightPage = {
     move: (x: number, y: number, options?: { steps?: number }) => Promise<void>;
     wheel: (deltaX: number, deltaY: number) => Promise<void>;
   };
+  route: (
+    url: string,
+    handler: (route: {
+      abort: () => Promise<void>;
+      continue: () => Promise<void>;
+      request: () => { url: () => string };
+    }) => Promise<void>,
+  ) => Promise<unknown>;
   screenshot: (options: {
     animations?: "allow" | "disabled";
     fullPage?: boolean;
@@ -256,6 +265,25 @@ async function screenshotToDataUrl(filePath: string) {
 async function waitForPage(page: PlaywrightPage) {
   await page.waitForLoadState("domcontentloaded", { timeout: 8_000 }).catch(() => undefined);
   await page.waitForLoadState("networkidle", { timeout: 4_000 }).catch(() => undefined);
+}
+
+async function installPublicNetworkGuard(page: PlaywrightPage) {
+  await page.route("**/*", async (route) => {
+    const requestUrl = route.request().url();
+    const protocol = new URL(requestUrl).protocol;
+
+    if (protocol !== "http:" && protocol !== "https:") {
+      await route.continue();
+      return;
+    }
+
+    try {
+      await assertPublicHttpUrl(requestUrl);
+      await route.continue();
+    } catch {
+      await route.abort();
+    }
+  });
 }
 
 async function inspectVisibleSite(page: PlaywrightPage) {
@@ -767,6 +795,7 @@ export async function captureWebsiteScreenshots({
   productName,
   sourceUrl,
 }: CaptureWebsiteScreenshotsInput): Promise<CaptureWebsiteScreenshotsResult> {
+  await assertPublicHttpUrl(sourceUrl);
   await mkdir(outputDir, { recursive: true });
   const recordingDir = path.join(outputDir, "recordings");
 
@@ -781,9 +810,10 @@ export async function captureWebsiteScreenshots({
   });
   let contextClosed = false;
 
-  try {
-    const page = await context.newPage();
-    const video = page.video();
+	  try {
+	    const page = await context.newPage();
+	    await installPublicNetworkGuard(page);
+	    const video = page.video();
     const startedAt = Date.now();
     const screenshots: ProductDemoScreenshot[] = [];
     const steps: string[] = [];

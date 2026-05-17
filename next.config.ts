@@ -110,12 +110,12 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   serverExternalPackages: ["hyperframes", "sharp"],
   outputFileTracingIncludes: {
-    "/api/launch-packs/\\[id\\]/render": renderRouteIncludes,
-    "/api/launch-packs/[id]/render": renderRouteIncludes,
+    "/api/demo-videos/\\[id\\]/render": renderRouteIncludes,
+    "/api/demo-videos/[id]/render": renderRouteIncludes,
   },
   outputFileTracingExcludes: {
-    "/api/launch-packs/\\[id\\]/render": renderRouteExcludes,
-    "/api/launch-packs/[id]/render": renderRouteExcludes,
+    "/api/demo-videos/\\[id\\]/render": renderRouteExcludes,
+    "/api/demo-videos/[id]/render": renderRouteExcludes,
   },
   turbopack: {
     root: process.cwd(),

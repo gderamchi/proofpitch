@@ -1,20 +1,10 @@
 import { z } from "zod";
 
-export const PlanIdSchema = z.enum(["free", "founder", "pro", "agency", "enterprise"]);
+import { parseHttpUrl } from "./public-url";
+
 export const ClaimStatusSchema = z.enum(["supported", "weak", "unsupported", "user_provided"]);
 export const SourceDocumentTypeSchema = z.enum(["user_input", "web", "repo", "upload"]);
-export const LaunchPackStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
-export const DeckModeSchema = z.enum(["investor", "sales", "launch"]);
-export const DeckRenderStateSchema = z.enum(["queued", "running", "ready", "failed"]);
-export const DeckLayoutSchema = z.enum(["cover", "section", "two_column", "proof", "demo", "risks", "closing"]);
-export const DeckSlideVisualKindSchema = z.enum([
-  "statement",
-  "screenshot",
-  "workflow",
-  "claim_stack",
-  "risk_stack",
-  "checklist",
-]);
+export const DemoVideoProjectStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
 
 export const ClaimSchema = z.object({
   id: z.string(),
@@ -26,43 +16,20 @@ export const ClaimSchema = z.object({
   explanation: z.string(),
 });
 
-export const PitchPackSchema = z.object({
-  projectName: z.string(),
-  oneLiner: z.string(),
-  targetUser: z.string(),
-  problem: z.string(),
-  solution: z.string(),
-  whyNow: z.string(),
-  executivePitch: z.string(),
-  demoScript2Min: z.string(),
-  liveDemoSteps: z.array(z.string()),
-  claims: z.array(ClaimSchema),
-  readmeSnippet: z.string(),
-  providerUsage: z.object({
-    openai: z.string(),
-    tavily: z.string().optional(),
-    pioneer: z.string().optional(),
-  }),
-  risks: z.array(z.string()),
-  nextSteps: z.array(z.string()),
-});
-
-export const GeneratePitchPackRequestSchema = z.object({
-  rawInput: z.string().min(10, "Paste at least one useful sentence.").max(12000),
-  projectUrl: z.preprocess(
-    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-    z.string().url().optional(),
-  ),
-});
-
-export const CreateLaunchPackRequestSchema = z.object({
-  sourceUrl: z.string().url(),
+export const CreateDemoVideoRequestSchema = z.object({
+  sourceUrl: z.string().url().refine((value) => {
+    try {
+      parseHttpUrl(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Only http and https product URLs are supported."),
   productName: z.string().min(1).max(140),
   targetAudience: z.string().min(3).max(240),
-  launchGoal: z.string().min(3).max(500),
+  demoGoal: z.string().min(3).max(500),
   demoInstructions: z.string().max(2000).optional(),
-  deckMode: DeckModeSchema,
-});
+}).strict();
 
 export const AuthCredentialsSchema = z.object({
   email: z.string().email(),
@@ -81,28 +48,7 @@ export const ProviderReportsSchema = z.object({
   openai: ProviderReportSchema,
   tavily: ProviderReportSchema,
   pioneer: ProviderReportSchema,
-});
-
-export const QuotaSnapshotSchema = z.object({
-  organizationId: z.string(),
-  plan: PlanIdSchema,
-  billingMode: z.string(),
-  monthlyLimit: z.number(),
-  usedThisPeriod: z.number(),
-  remaining: z.number(),
-  singlePackCredits: z.number(),
-  periodStart: z.string(),
-  source: z.enum(["supabase", "local"]),
-});
-
-export const PitchPackRecordSchema = z.object({
-  id: z.string(),
-  organizationId: z.string(),
-  projectId: z.string().nullable().optional(),
-  status: z.enum(["queued", "running", "completed", "failed"]),
-  plan: PlanIdSchema,
-  quota: QuotaSnapshotSchema,
-  createdAt: z.string(),
+  gradium: ProviderReportSchema.optional(),
 });
 
 export const SourceDocumentSummarySchema = z.object({
@@ -114,87 +60,11 @@ export const SourceDocumentSummarySchema = z.object({
   createdAt: z.string(),
 });
 
-export const ProviderRunSummarySchema = z.object({
-  id: z.string().optional(),
-  provider: z.enum(["openai", "tavily", "pioneer"]),
-  status: ProviderStateSchema,
-  latencyMs: z.number().nullable().optional(),
-  error: z.string().nullable().optional(),
-  metadata: z.record(z.string(), z.unknown()),
-  createdAt: z.string().optional(),
-});
-
-export const ExportSummarySchema = z.object({
-  id: z.string(),
-  type: z.enum(["markdown", "pdf"]),
-  storageUrl: z.string().nullable().optional(),
-  signedUrl: z.string().nullable().optional(),
-  metadata: z.record(z.string(), z.unknown()),
-  createdAt: z.string(),
-});
-
-export const ProjectSummarySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  defaultUrl: z.string().nullable().optional(),
-  pitchPackCount: z.number(),
-  latestPitchPackAt: z.string().nullable(),
-});
-
-export const LaunchScreenshotSchema = z.object({
+export const DemoScreenshotSchema = z.object({
   id: z.string(),
   title: z.string(),
   url: z.string(),
   alt: z.string(),
-});
-
-export const SlidevExportFormatSchema = z.enum(["pdf", "pptx", "png"]);
-
-export const PitchDeckExportSchema = z.object({
-  format: SlidevExportFormatSchema,
-  status: z.enum(["pending", "ready", "failed"]),
-  path: z.string().optional(),
-  storageUrl: z.string().nullable().optional(),
-  signedUrl: z.string().nullable().optional(),
-  error: z.string().optional(),
-});
-
-export const DeckSlideVisualSchema = z.object({
-  kind: DeckSlideVisualKindSchema,
-  title: z.string().min(1).max(120),
-  caption: z.string().max(320).optional(),
-  url: z.string().min(1).max(2000).optional(),
-  alt: z.string().max(240).optional(),
-});
-
-export const DeckSlideSpecSchema = z.object({
-  id: z.string(),
-  title: z.string().min(1).max(120),
-  layout: DeckLayoutSchema,
-  body: z.string().min(1).max(1200),
-  claimIds: z.array(z.string()),
-  notes: z.string().min(1).max(1200),
-  visual: DeckSlideVisualSchema.optional(),
-});
-
-export const DeckOutlineSchema = z.object({
-  status: z.enum(["pending", "ready"]),
-  deckMode: DeckModeSchema,
-  acceptedClaimIds: z.array(z.string()),
-  slides: z.array(DeckSlideSpecSchema),
-});
-
-export const PitchDeckSchema = z.object({
-  status: z.enum(["pending", "ready", "failed"]),
-  format: z.literal("slidev"),
-  title: z.string(),
-  slideCount: z.number().int().min(0),
-  markdown: z.string(),
-  deckMode: DeckModeSchema,
-  outline: DeckOutlineSchema,
-  renderState: DeckRenderStateSchema,
-  exports: z.array(PitchDeckExportSchema),
-  error: z.string().optional(),
 });
 
 export const ProductDemoScreenshotSchema = z.object({
@@ -211,6 +81,29 @@ export const ProductDemoScreenshotSchema = z.object({
     .optional(),
 });
 
+export const DemoBriefSchema = z.object({
+  projectName: z.string(),
+  oneLiner: z.string(),
+  targetUser: z.string(),
+  demoNarrative: z.string(),
+  demoScript2Min: z.string(),
+  demoSteps: z.array(z.string()).min(1),
+  claims: z.array(ClaimSchema),
+  providerUsage: z.object({
+    openai: z.string(),
+    tavily: z.string().optional(),
+    pioneer: z.string().optional(),
+  }),
+  risks: z.array(z.string()),
+  nextSteps: z.array(z.string()),
+});
+
+export const ProofReviewSchema = z.object({
+  status: z.enum(["pending", "approved"]),
+  acceptedClaimIds: z.array(z.string()),
+  rejectedClaimIds: z.array(z.string()),
+});
+
 export const HyperFramesRenderSpecSchema = z.object({
   productName: z.string(),
   oneLiner: z.string(),
@@ -220,264 +113,97 @@ export const HyperFramesRenderSpecSchema = z.object({
   screenshots: z.array(ProductDemoScreenshotSchema),
   demoSteps: z.array(z.string()).min(1),
   captions: z.array(z.string()),
+  voiceoverScript: z.string().optional(),
   compositionHtml: z.string().optional(),
   designNotes: z.string().optional(),
   researchSummary: z.string().optional(),
 });
 
 export const DemoVideoStatusSchema = z.enum(["pending", "ready", "failed"]);
-
-export const DemoVideoSchema = z.preprocess(
-  (value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return value;
-    }
-
-    const candidate = value as Record<string, unknown>;
-    const legacySpecKey = ["render", "Props"].join("");
-    const renderSpec = candidate.renderSpec ?? candidate[legacySpecKey];
-
-    return {
-      ...candidate,
-      renderer: "hyperframes",
-      renderSpec,
-    };
-  },
-  z.object({
-    status: DemoVideoStatusSchema,
-    url: z.string().optional(),
-    durationSeconds: z.number().int().min(0).max(600).optional(),
-    uploadStatus: z.enum([
-      "not_required",
-      "pending",
-      "uploaded",
-      "manual_upload_required",
-      "blocked_by_provider_review",
-    ]),
-    renderer: z.literal("hyperframes").optional(),
-    compositionId: z.string().optional(),
-    renderSpec: HyperFramesRenderSpecSchema.optional(),
-    error: z.string().optional(),
-  }),
-);
-
-export const SocialDraftStatusSchema = z.enum(["ready", "needs_video", "needs_deck", "manual_step"]);
-export const SocialDraftVideoAssetSchema = z.object({
+export const DemoVideoSchema = z.object({
   status: DemoVideoStatusSchema,
   url: z.string().optional(),
-  format: z.literal("mp4"),
-  usageByPlatform: z.object({
-    x: z.string(),
-    linkedin: z.string(),
-    productHunt: z.string(),
-  }),
+  durationSeconds: z.number().int().min(0).max(600).optional(),
+  uploadStatus: z.enum(["not_required", "pending", "uploaded"]),
+  renderer: z.literal("hyperframes").optional(),
+  compositionId: z.string().optional(),
+  renderSpec: HyperFramesRenderSpecSchema.optional(),
+  error: z.string().optional(),
 });
 
-export const SocialDraftDeckAssetSchema = z.object({
-  status: z.enum(["pending", "ready", "failed"]),
-  url: z.string().optional(),
-  format: z.literal("pdf"),
-  usageByPlatform: z.object({
-    x: z.string(),
-    linkedin: z.string(),
-    productHunt: z.string(),
-  }),
+export const VoiceoverStatusSchema = z.enum(["pending", "ready", "captions_only", "failed"]);
+export const VoiceoverSchema = z.object({
+  status: VoiceoverStatusSchema,
+  provider: z.literal("gradium"),
+  script: z.string(),
+  audioUrl: z.string().optional(),
+  reason: z.string().optional(),
 });
 
-export const XSocialDraftSchema = z.object({
-  platform: z.literal("x"),
-  status: SocialDraftStatusSchema,
-  post: z.string().min(1).max(280),
-  thread: z.array(z.string().min(1).max(280)),
-  hashtags: z.array(z.string().min(2).max(40)),
-  cta: z.string().min(1).max(180),
-  composerUrl: z.string(),
-  videoNote: z.string().min(1).max(240),
-  deckNote: z.string().min(1).max(240),
-});
-
-export const LinkedInSocialDraftSchema = z.object({
-  platform: z.literal("linkedin"),
-  status: SocialDraftStatusSchema,
-  hook: z.string().min(1).max(240),
-  body: z.string().min(1).max(1800),
-  cta: z.string().min(1).max(240),
-  post: z.string().min(1).max(3000),
-  composerUrl: z.string(),
-  videoNote: z.string().min(1).max(280),
-  deckNote: z.string().min(1).max(280),
-});
-
-export const ProductHuntSocialDraftSchema = z.object({
-  platform: z.literal("product_hunt"),
-  status: SocialDraftStatusSchema,
-  productName: z.string().min(1).max(80),
-  tagline: z.string().min(1).max(60),
-  description: z.string().min(1).max(500),
-  firstComment: z.string().min(1).max(1800),
-  makerNote: z.string().min(1).max(500),
-  launchTags: z.array(z.string().min(1).max(40)).min(1).max(3),
-  mediaChecklist: z.array(z.string().min(1).max(180)),
-  videoNote: z.string().min(1).max(280),
-  submitUrl: z.string(),
-});
-
-export const SocialDraftsSchema = z.object({
-  generatedAt: z.string(),
-  assets: z.object({
-    productUrl: z.string(),
-    video: SocialDraftVideoAssetSchema,
-    deck: SocialDraftDeckAssetSchema,
-  }),
-  x: XSocialDraftSchema,
-  linkedin: LinkedInSocialDraftSchema,
-  productHunt: ProductHuntSocialDraftSchema,
-});
-
-export const LaunchPackSchema = z.object({
+export const DemoVideoProjectSchema = z.object({
   id: z.string(),
   organizationId: z.string().optional(),
-  status: LaunchPackStatusSchema,
+  status: DemoVideoProjectStatusSchema,
   sourceUrl: z.string().url(),
   productName: z.string(),
   targetAudience: z.string(),
-  launchGoal: z.string(),
+  demoGoal: z.string(),
   demoInstructions: z.string().optional(),
-  deckMode: DeckModeSchema,
-  claimReview: z.object({
-    status: z.enum(["pending", "approved"]),
-    acceptedClaimIds: z.array(z.string()),
-    rejectedClaimIds: z.array(z.string()),
-  }),
-  demoScript: z.string(),
+  proofReview: ProofReviewSchema,
+  demoBrief: DemoBriefSchema,
   captions: z.array(z.string()),
-  screenshots: z.array(LaunchScreenshotSchema),
+  screenshots: z.array(DemoScreenshotSchema),
   demoVideo: DemoVideoSchema,
-  pitchDeck: PitchDeckSchema,
-  launchChecklist: z.array(z.string()),
-  socialDrafts: SocialDraftsSchema.optional(),
-  pitchPack: PitchPackSchema,
+  voiceover: VoiceoverSchema,
   providers: ProviderReportsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-export const GeneratePitchPackResponseSchema = z.object({
-  mode: z.enum(["live", "partial", "demo"]),
-  pitchPack: PitchPackSchema,
-  providers: ProviderReportsSchema,
-  record: PitchPackRecordSchema.optional(),
-  quota: QuotaSnapshotSchema.optional(),
+export const ApproveProofReviewRequestSchema = z.object({
+  acceptedClaimIds: z.array(z.string()).min(1, "Accept at least one claim for the demo narration."),
+  project: DemoVideoProjectSchema.optional(),
 });
 
-export const ExportRequestSchema = z.object({
-  type: z.enum(["markdown", "pdf"]).default("markdown"),
-});
-
-export const ApproveDeckOutlineRequestSchema = z.object({
-  acceptedClaimIds: z.array(z.string()).min(1, "Accept at least one claim for the deck outline."),
-  launchPack: LaunchPackSchema.optional(),
-});
-
-export const RenderLaunchDeckRequestSchema = z.object({
-  dryRun: z.boolean().default(false),
-  launchPack: LaunchPackSchema.optional(),
-});
-
-export const RenderLaunchVideoRequestSchema = z
+export const RenderDemoVideoRequestSchema = z
   .object({
     captureSite: z.boolean().default(true),
     dryRun: z.boolean().default(false),
-    launchPack: LaunchPackSchema.optional(),
-    renderDeck: z.literal(false).optional(),
-    renderVideo: z.literal(true),
+    project: DemoVideoProjectSchema.optional(),
+    renderVideo: z.literal(true).default(true),
   })
   .strict();
 
-export const RefreshSocialDraftsRequestSchema = z
-  .object({
-    launchPack: LaunchPackSchema.optional(),
-  })
-  .strict();
-
-export const CreateProjectRequestSchema = z.object({
-  name: z.string().min(1).max(140),
-  defaultUrl: z.preprocess(
-    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-    z.string().url().optional(),
-  ),
-});
-
-export const UpdatePitchPackRequestSchema = z
-  .object({
-    projectName: z.string().min(1).max(140).optional(),
-    approvalNote: z.string().max(500).nullable().optional(),
-  })
-  .refine((value) => value.projectName !== undefined || value.approvalNote !== undefined, {
-    message: "Provide projectName or approvalNote.",
-  });
-
-export type PlanId = z.infer<typeof PlanIdSchema>;
 export type ClaimStatus = z.infer<typeof ClaimStatusSchema>;
 export type SourceDocumentType = z.infer<typeof SourceDocumentTypeSchema>;
-export type LaunchPackStatus = z.infer<typeof LaunchPackStatusSchema>;
-export type DeckMode = z.infer<typeof DeckModeSchema>;
-export type DeckRenderState = z.infer<typeof DeckRenderStateSchema>;
-export type DeckLayout = z.infer<typeof DeckLayoutSchema>;
-export type DeckSlideVisualKind = z.infer<typeof DeckSlideVisualKindSchema>;
+export type DemoVideoProjectStatus = z.infer<typeof DemoVideoProjectStatusSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
-export type PitchPack = z.infer<typeof PitchPackSchema>;
-export type GeneratePitchPackRequest = z.infer<typeof GeneratePitchPackRequestSchema>;
-export type CreateLaunchPackRequest = z.infer<typeof CreateLaunchPackRequestSchema>;
-export type GeneratePitchPackResponse = z.infer<typeof GeneratePitchPackResponseSchema>;
+export type CreateDemoVideoRequest = z.infer<typeof CreateDemoVideoRequestSchema>;
 export type ProviderReport = z.infer<typeof ProviderReportSchema>;
 export type ProviderReports = z.infer<typeof ProviderReportsSchema>;
-export type QuotaSnapshot = z.infer<typeof QuotaSnapshotSchema>;
-export type PitchPackRecord = z.infer<typeof PitchPackRecordSchema>;
 export type SourceDocumentSummary = z.infer<typeof SourceDocumentSummarySchema>;
-export type ProviderRunSummary = z.infer<typeof ProviderRunSummarySchema>;
-export type ExportSummary = z.infer<typeof ExportSummarySchema>;
-export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
-export type LaunchScreenshot = z.infer<typeof LaunchScreenshotSchema>;
-export type SlidevExportFormat = z.infer<typeof SlidevExportFormatSchema>;
-export type PitchDeckExport = z.infer<typeof PitchDeckExportSchema>;
-export type DeckSlideVisual = z.infer<typeof DeckSlideVisualSchema>;
-export type DeckSlideSpec = z.infer<typeof DeckSlideSpecSchema>;
-export type DeckOutline = z.infer<typeof DeckOutlineSchema>;
-export type PitchDeck = z.infer<typeof PitchDeckSchema>;
+export type DemoScreenshot = z.infer<typeof DemoScreenshotSchema>;
 export type ProductDemoScreenshot = z.infer<typeof ProductDemoScreenshotSchema>;
+export type DemoBrief = z.infer<typeof DemoBriefSchema>;
+export type ProofReview = z.infer<typeof ProofReviewSchema>;
 export type HyperFramesRenderSpec = z.infer<typeof HyperFramesRenderSpecSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
-export type SocialDraftStatus = z.infer<typeof SocialDraftStatusSchema>;
-export type SocialDraftVideoAsset = z.infer<typeof SocialDraftVideoAssetSchema>;
-export type SocialDraftDeckAsset = z.infer<typeof SocialDraftDeckAssetSchema>;
-export type XSocialDraft = z.infer<typeof XSocialDraftSchema>;
-export type LinkedInSocialDraft = z.infer<typeof LinkedInSocialDraftSchema>;
-export type ProductHuntSocialDraft = z.infer<typeof ProductHuntSocialDraftSchema>;
-export type SocialDrafts = z.infer<typeof SocialDraftsSchema>;
-export type LaunchPack = z.infer<typeof LaunchPackSchema>;
-export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
-export type UpdatePitchPackRequest = z.infer<typeof UpdatePitchPackRequestSchema>;
-export type ApproveDeckOutlineRequest = z.infer<typeof ApproveDeckOutlineRequestSchema>;
-export type RenderLaunchDeckRequest = z.infer<typeof RenderLaunchDeckRequestSchema>;
-export type RenderLaunchVideoRequest = z.infer<typeof RenderLaunchVideoRequestSchema>;
-export type RefreshSocialDraftsRequest = z.infer<typeof RefreshSocialDraftsRequestSchema>;
+export type Voiceover = z.infer<typeof VoiceoverSchema>;
+export type DemoVideoProject = z.infer<typeof DemoVideoProjectSchema>;
+export type ApproveProofReviewRequest = z.infer<typeof ApproveProofReviewRequestSchema>;
+export type RenderDemoVideoRequest = z.infer<typeof RenderDemoVideoRequestSchema>;
 
-export const pitchPackJsonSchema = {
+export const demoBriefJsonSchema = {
   type: "object",
   additionalProperties: false,
   required: [
     "projectName",
     "oneLiner",
     "targetUser",
-    "problem",
-    "solution",
-    "whyNow",
-    "executivePitch",
+    "demoNarrative",
     "demoScript2Min",
-    "liveDemoSteps",
+    "demoSteps",
     "claims",
-    "readmeSnippet",
     "providerUsage",
     "risks",
     "nextSteps",
@@ -486,12 +212,9 @@ export const pitchPackJsonSchema = {
     projectName: { type: "string" },
     oneLiner: { type: "string" },
     targetUser: { type: "string" },
-    problem: { type: "string" },
-    solution: { type: "string" },
-    whyNow: { type: "string" },
-    executivePitch: { type: "string" },
+    demoNarrative: { type: "string" },
     demoScript2Min: { type: "string" },
-    liveDemoSteps: { type: "array", items: { type: "string" } },
+    demoSteps: { type: "array", minItems: 1, items: { type: "string" } },
     claims: {
       type: "array",
       items: {
@@ -515,7 +238,6 @@ export const pitchPackJsonSchema = {
         },
       },
     },
-    readmeSnippet: { type: "string" },
     providerUsage: {
       type: "object",
       additionalProperties: false,

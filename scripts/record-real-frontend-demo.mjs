@@ -183,28 +183,28 @@ async function main() {
   await replaceText(page, page.getByPlaceholder("Target audience"), "Founder-led B2B teams", "target audience");
   await replaceText(
     page,
-    page.getByPlaceholder("Goal"),
-    "Prepare a customer-call demo and concise sales deck.",
+    page.getByPlaceholder("Demo goal"),
+    "Show the product URL to proof-aware demo video workflow.",
     "launch goal",
   );
   await replaceText(
     page,
     page.getByPlaceholder(/Demo path/),
-    "Open the page, review the launch-pack form, then show the claim ledger and visual deck preview.",
+    "Open the page, review the form, show the proof review, then render the demo video.",
     "demo path",
   );
 
-  await click(page, page.getByRole("button", { name: /Generate MVP pack/i }), "generate pack");
-  await page.waitForSelector("text=Approve claims for the deck");
+  await click(page, page.getByRole("button", { name: /Generate demo brief/i }), "generate brief");
+  await page.waitForSelector("text=Proof review");
   await page.waitForTimeout(1200);
 
-  await moveTo(page, page.getByText("Approve claims for the deck"), "claim ledger", { x: 0.3, y: 0.5 });
+  await moveTo(page, page.getByText("Proof review"), "proof review", { x: 0.3, y: 0.5 });
   await page.waitForTimeout(1000);
 
-  await click(page, page.getByRole("button", { name: /Generate outline/i }), "generate deck");
-  await page.waitForSelector("text=Download Slidev");
-  await page.waitForTimeout(1800);
-  await moveTo(page, page.getByText("Download Slidev"), "deck preview", { x: 0.4, y: 0.5 });
+  await click(page, page.getByRole("button", { name: /Approve for narration/i }), "approve narration");
+  await page.waitForSelector("text=Narration ready");
+  await page.waitForTimeout(1200);
+  await moveTo(page, page.getByText("Video brief"), "video brief", { x: 0.4, y: 0.5 });
   await page.waitForTimeout(3600);
 
   const rawVideoPath = await page.video().path();

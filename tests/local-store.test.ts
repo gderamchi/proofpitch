@@ -1,36 +1,97 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { consumeLocalQuota, getLocalQuotaSnapshot } from "../lib/local-store";
+import {
+  getLocalDemoVideoProject,
+  resetLocalStoreForTests,
+  saveLocalDemoVideoProject,
+  updateLocalDemoVideoProject,
+} from "../lib/local-store";
+import { DemoVideoProjectSchema, type DemoVideoProject } from "../lib/schemas";
 
-const LOCAL_STORE_KEY = "__proofpitchLocalStore";
+function buildProject(id = "local-demo"): DemoVideoProject {
+  const now = new Date().toISOString();
 
-describe("local free access quota", () => {
-  beforeEach(() => {
-    delete (globalThis as Record<string, unknown>)[LOCAL_STORE_KEY];
-    vi.unstubAllEnvs();
+  return DemoVideoProjectSchema.parse({
+    id,
+    status: "running",
+    sourceUrl: "https://example.com",
+    productName: "ProofPitch",
+    targetAudience: "Founder-led B2B teams",
+    demoGoal: "Show the proof-aware demo flow.",
+    proofReview: {
+      status: "pending",
+      acceptedClaimIds: ["claim-1"],
+      rejectedClaimIds: [],
+    },
+    demoBrief: {
+      projectName: "ProofPitch",
+      oneLiner: "Proof-aware demo video.",
+      targetUser: "Founder-led B2B teams",
+      demoNarrative: "Show the product and accepted proof.",
+      demoScript2Min: "Open the product and narrate accepted proof.",
+      demoSteps: ["Open the product."],
+      claims: [
+        {
+          id: "claim-1",
+          text: "The demo uses the submitted URL.",
+          status: "user_provided",
+          sourceType: "user_input",
+          sourceTitle: "Request",
+          sourceUrl: null,
+          explanation: "The URL is provided by the user.",
+        },
+      ],
+      providerUsage: {
+        openai: "",
+        tavily: "",
+        pioneer: "",
+      },
+      risks: [],
+      nextSteps: [],
+    },
+    captions: ["Proof-aware demo video."],
+    screenshots: [],
+    demoVideo: {
+      status: "pending",
+      uploadStatus: "pending",
+      renderer: "hyperframes",
+    },
+    voiceover: {
+      status: "pending",
+      provider: "gradium",
+      script: "Open the product and narrate accepted proof.",
+    },
+    providers: {
+      openai: { state: "missing", detail: "missing" },
+      tavily: { state: "missing", detail: "missing" },
+      pioneer: { state: "missing", detail: "missing" },
+    },
+    createdAt: now,
+    updatedAt: now,
   });
+}
 
-  it("keeps the unauthenticated product usable without a practical cap", () => {
-    expect(getLocalQuotaSnapshot().monthlyLimit).toBe(Number.MAX_SAFE_INTEGER);
+describe("local demo-video store", () => {
+  it("saves, reads, and updates demo video projects without quota state", () => {
+    resetLocalStoreForTests();
+    const project = buildProject();
 
-    expect(consumeLocalQuota().ok).toBe(true);
-    const second = consumeLocalQuota();
+    saveLocalDemoVideoProject({ project });
+    expect(getLocalDemoVideoProject(project.id)?.project.productName).toBe("ProofPitch");
 
-    expect(second.ok).toBe(true);
-    expect(second.quota.billingMode).toBe("free-access");
-    expect(second.quota.remaining).toBeGreaterThan(1_000_000);
-  });
+    const updated = {
+      ...project,
+      status: "completed" as const,
+      demoVideo: {
+        ...project.demoVideo,
+        status: "ready" as const,
+        url: "/api/demo-videos/local-demo/video",
+        uploadStatus: "not_required" as const,
+      },
+    };
 
-  it("ignores legacy local demo limit env caps", () => {
-    vi.stubEnv("PROOFPITCH_LOCAL_DEMO_PACK_LIMIT", "2");
-
-    expect(consumeLocalQuota().ok).toBe(true);
-    expect(consumeLocalQuota().ok).toBe(true);
-
-    const third = consumeLocalQuota();
-
-    expect(third.ok).toBe(true);
-    expect(third.quota.monthlyLimit).toBe(Number.MAX_SAFE_INTEGER);
-    expect(third.quota.remaining).toBeGreaterThan(1_000_000);
+    expect(updateLocalDemoVideoProject(updated)).toBe(true);
+    expect(getLocalDemoVideoProject(project.id)?.project.demoVideo.url).toBe("/api/demo-videos/local-demo/video");
+    expect(getLocalDemoVideoProject("missing")).toBeNull();
   });
 });

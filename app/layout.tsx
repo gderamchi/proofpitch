@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ProofPitch | Demo + Deck",
+  title: "ProofPitch | Demo Video",
   description:
-    "Turn product URLs and release context into a product demo video state, separate pitch deck, and visible claim ledger.",
+    "Turn product URLs and release context into proof-aware demo videos with optional Gradium voiceover.",
   icons: {
     icon: "/brand/proofpitch-logo.png",
     apple: "/brand/proofpitch-logo.png",

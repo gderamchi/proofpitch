@@ -4,7 +4,7 @@ export type ProviderName = "openai" | "tavily" | "pioneer";
 
 export function initialProviderReports(): ProviderReports {
   return {
-    openai: { state: "pending", detail: "Structured pitch generation not run yet." },
+    openai: { state: "pending", detail: "Structured demo brief generation not run yet." },
     tavily: { state: "pending", detail: "Research not run yet." },
     pioneer: { state: "pending", detail: "Claim extraction not run yet." },
   };

@@ -1,16 +1,16 @@
 import { providerFailed, providerMissing } from "./providers";
 import { fetchWithRetry } from "./retry";
 import {
-  PitchPackSchema,
-  pitchPackJsonSchema,
-  type PitchPack,
+  DemoBriefSchema,
+  demoBriefJsonSchema,
+  type DemoBrief,
   type ProviderReport,
 } from "./schemas";
 import type { PioneerExtraction } from "./pioneer";
 import type { ResearchResult } from "./tavily";
 
-export type OpenAIPitchPackResult = {
-  pitchPack?: PitchPack;
+export type OpenAIDemoBriefResult = {
+  demoBrief?: DemoBrief;
   report: ProviderReport;
 };
 
@@ -44,7 +44,7 @@ function extractOutputText(data: ResponsesApiOutput): string | undefined {
   return undefined;
 }
 
-export async function generatePitchPackWithOpenAI({
+export async function generateDemoBriefWithOpenAI({
   rawInput,
   projectUrl,
   research,
@@ -54,7 +54,7 @@ export async function generatePitchPackWithOpenAI({
   projectUrl?: string;
   research: ResearchResult;
   pioneer: PioneerExtraction;
-}): Promise<OpenAIPitchPackResult> {
+}): Promise<OpenAIDemoBriefResult> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -68,66 +68,69 @@ export async function generatePitchPackWithOpenAI({
     .slice(0, 5)
     .map((source, index) => `${index + 1}. ${source.title} (${source.url}) - ${source.content}`)
     .join("\n");
-
   const extractionSummary = pioneer.entities.length
     ? JSON.stringify(pioneer.entities.slice(0, 25), null, 2)
     : "No Pioneer extraction available.";
 
   try {
-    const response = await fetchWithRetry("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithRetry(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          instructions:
+            "You are ProofPitch, a proof-aware product demo planner. Produce concise, defensible demo output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. The accepted claims will feed video captions and voiceover narration, so every claim must be safe to review.",
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: [
+                    "Create a ProofPitch demo-video brief from this input.",
+                    "",
+                    `Demo request:\n${rawInput}`,
+                    projectUrl ? `Product URL: ${projectUrl}` : "Product URL: not provided",
+                    "",
+                    research.answer ? `Tavily answer:\n${research.answer}` : "Tavily answer: unavailable",
+                    "",
+                    sourceLines ? `Tavily sources:\n${sourceLines}` : "Tavily sources: unavailable",
+                    "",
+                    `Pioneer extraction:\n${extractionSummary}`,
+                    "",
+                    "Rules:",
+                    "- The two-minute script must narrate a real product walkthrough, not a slide deck.",
+                    "- Claim explanations must say exactly why a claim is supported, weak, unsupported, or only user-provided.",
+                    "- Unsupported claims must remain in the ledger for review but must not be necessary for the demo narrative.",
+                    "- Provider usage must describe real intended use of OpenAI, Tavily, and Pioneer. Use an empty string only if a provider is not used.",
+                    "- Do not describe pitch decks, PDF exports, Slidev, pricing, checkout, or publishing workflows as product outputs.",
+                  ].join("\n"),
+                },
+              ],
+            },
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "demo_brief",
+              strict: true,
+              schema: demoBriefJsonSchema,
+            },
+          },
+          reasoning: {
+            effort: "low",
+          },
+          max_output_tokens: 5000,
+          store: false,
+        }),
       },
-      body: JSON.stringify({
-        model,
-        instructions:
-          "You are ProofPitch, a product narrative and claim-verification engine. Produce concise, defensible output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. Keep the claim ledger visible and useful for founder, sales, and investor-facing material.",
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: [
-                  "Create a ProofPitch pitch pack from this input.",
-                  "",
-                  `Raw builder note:\n${rawInput}`,
-                  projectUrl ? `Project URL: ${projectUrl}` : "Project URL: not provided",
-                  "",
-                  research.answer ? `Tavily answer:\n${research.answer}` : "Tavily answer: unavailable",
-                  "",
-                  sourceLines ? `Tavily sources:\n${sourceLines}` : "Tavily sources: unavailable",
-                  "",
-                  `Pioneer extraction:\n${extractionSummary}`,
-                  "",
-                  "Rules:",
-                  "- The two-minute script must be practical for a founder, sales, or investor presentation.",
-                  "- Claim explanations must say exactly why a claim is supported, weak, unsupported, or only user-provided.",
-                  "- Provider usage must describe real intended use of OpenAI, Tavily, and Pioneer. Use an empty string only if a provider is not used.",
-                  "- Do not describe removed audio, generated-media, or publishing workflows as MVP outputs.",
-                ].join("\n"),
-              },
-            ],
-          },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "pitch_pack",
-            strict: true,
-            schema: pitchPackJsonSchema,
-          },
-        },
-        reasoning: {
-          effort: "low",
-        },
-        max_output_tokens: 5000,
-        store: false,
-      }),
-    }, { timeoutMs: 60_000 });
-
+      { timeoutMs: 60_000 },
+    );
     const text = await response.text();
 
     if (!response.ok) {
@@ -146,13 +149,13 @@ export async function generatePitchPackWithOpenAI({
       throw new Error("OpenAI returned no output_text.");
     }
 
-    const pitchPack = PitchPackSchema.parse(JSON.parse(outputText));
+    const demoBrief = DemoBriefSchema.parse(JSON.parse(outputText));
 
     return {
-      pitchPack,
+      demoBrief,
       report: {
         state: "used",
-        detail: `OpenAI generated structured PitchPack JSON with ${model}.`,
+        detail: `OpenAI generated structured DemoBrief JSON with ${model}.`,
       },
     };
   } catch (error) {

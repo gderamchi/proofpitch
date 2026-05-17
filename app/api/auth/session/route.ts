@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getSessionPayload } from "@/lib/pitch-pack-service";
+import { getSessionPayload } from "@/lib/account-service";
 
 export const runtime = "nodejs";
 

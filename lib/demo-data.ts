@@ -1,92 +1,77 @@
-import type { PitchPack } from "./schemas";
+import type { DemoBrief } from "./schemas";
 
-export const demoPitchPack: PitchPack = {
+export const demoBriefFixture: DemoBrief = {
   projectName: "ProofPitch",
-  oneLiner: "ProofPitch turns a rough founder note into a verified pitch pack.",
-  targetUser: "Founders, GTM teams, accelerators, agencies, and product marketers.",
-  problem:
-    "Teams often understand their product better than they can explain it, and their pitch materials mix strong claims with unsupported language.",
-  solution:
-    "ProofPitch captures a messy note, checks the claims, and generates a concise pitch pack with the proof trail attached.",
-  whyNow:
-    "AI can generate polished copy quickly, but buyers and investors increasingly need traceable, defensible claims instead of generic pitch language.",
-  executivePitch:
-    "ProofPitch helps builders turn raw project context into a clear two-minute pitch without hiding unsupported claims.",
+  oneLiner: "Turn a public product URL into a proof-aware demo video with reviewable claims.",
+  targetUser: "Founder-led B2B teams",
+  demoNarrative:
+    "Open the product, follow the requested workflow, pause on the strongest proof moment, and narrate only claims that survived review.",
   demoScript2Min:
-    "Open with the problem: most pitch material is either too vague or too unverified. Paste a rough founder note, add a project URL, then generate the pack. Show the claim ledger first, then the two-minute script, README snippet, product demo state, and separate deck. Close by showing that unsupported claims were removed before sharing the pitch.",
-  liveDemoSteps: [
-    "Paste or record a rough founder note.",
-    "Add a project or GitHub URL.",
-    "Generate the pitch pack.",
-    "Review the claim ledger before reading the final pitch.",
-    "Use the README snippet, product demo plan, and deck for investor or sales collateral.",
+    "Start with the product URL and explain who the demo is for. Walk through the primary product path, call out the proof that is visible on screen, and avoid unsupported metrics. End by telling the viewer which claim was validated and what to inspect next.",
+  demoSteps: [
+    "Open the public product URL.",
+    "Follow the requested demo path or the clearest visible workflow.",
+    "Pause on the strongest proof moment.",
+    "Close with the accepted proof claim and next action.",
   ],
   claims: [
     {
       id: "claim-1",
-      text: "ProofPitch outputs a two-minute script, README snippet, product demo plan, and deck.",
-      status: "supported",
-      sourceType: "inference",
-      sourceTitle: "Local demo flow",
-      explanation: "These outputs are part of the generated PitchPack schema.",
+      text: "The demo is based on the submitted public product URL.",
+      status: "user_provided",
+      sourceType: "user_input",
+      sourceTitle: "Founder input",
+      sourceUrl: null,
+      explanation: "The user supplied the URL, so the claim is safe to narrate as input context.",
     },
     {
       id: "claim-2",
-      text: "The stack can use OpenAI, Tavily, and Pioneer.",
-      status: "user_provided",
+      text: "ProofPitch separates unsupported claims from the final narration.",
+      status: "supported",
       sourceType: "user_input",
-      sourceTitle: "Provider plan",
-      explanation: "The provider stack is configured by the builder and tracked in the generation report.",
-    },
-    {
-      id: "claim-3",
-      text: "ProofPitch improves demo quality by 40%.",
-      status: "unsupported",
-      sourceType: "inference",
-      explanation: "This sounds like a metric claim and should not be said without evidence.",
+      sourceTitle: "ProofPitch workflow",
+      sourceUrl: null,
+      explanation: "The proof review gate controls which claims feed captions and voiceover.",
     },
   ],
-  readmeSnippet:
-    "ProofPitch converts rough founder notes and optional project URLs into a verified pitch pack: executive pitch, two-minute script, claim ledger, product demo plan, README snippet, and provider usage notes.",
   providerUsage: {
-    openai: "Structured pitch-pack generation and synthesis.",
-    tavily: "Research and source extraction when TAVILY_API_KEY is configured.",
-    pioneer: "Claim/entity extraction skeleton using GLiNER2/Pioneer when configured.",
+    openai: "Fallback used because OpenAI was unavailable.",
+    tavily: "No live Tavily research was available for this fallback.",
+    pioneer: "No live Pioneer extraction was available for this fallback.",
   },
   risks: [
-    "Claim verification is evidence-aided and should not be presented as legal or factual guarantee.",
-    "External provider latency can vary during live demos.",
+    "Public websites can block capture with bot protection or consent walls.",
+    "Narration should not include unsupported traction, revenue, or performance metrics.",
   ],
   nextSteps: [
-    "Add real OpenAI credentials for structured generation.",
-    "Add Tavily credentials for live research.",
-    "Keep Pioneer parser coverage aligned with production endpoint responses.",
+    "Review accepted claims before rendering.",
+    "Render the HyperFrames MP4 and inspect it before sharing.",
   ],
 };
 
-export function buildFallbackPitchPack(rawInput: string, projectUrl?: string): PitchPack {
-  const trimmed = rawInput.trim();
-  const projectName = projectUrl ? new URL(projectUrl).hostname.replace(/^www\./, "") : "Your project";
-  const shortClaim = `${trimmed.slice(0, 190)}${trimmed.length > 190 ? "..." : ""}`;
+export function buildFallbackDemoBrief(rawInput: string, projectUrl?: string): DemoBrief {
+  const trimmed = rawInput.replace(/\s+/g, " ").trim();
+  const projectName = projectUrl ? new URL(projectUrl).hostname.replace(/^www\./, "") : "Your product";
 
   return {
-    ...demoPitchPack,
+    ...demoBriefFixture,
     projectName,
-    oneLiner: `${projectName} turns a rough idea into a pitch narrative with a visible proof trail.`,
-    executivePitch: `This project starts from a rough builder note: "${trimmed.slice(0, 180)}${
-      trimmed.length > 180 ? "..." : ""
-    }" ProofPitch turns that context into a concise pitch pack while keeping unsupported claims visible.`,
+    oneLiner: `${projectName} gets a proof-aware product demo from the submitted URL.`,
+    demoNarrative: `The demo should show ${projectName} through the safest visible product path, using this context: ${trimmed.slice(0, 220)}.`,
+    demoScript2Min:
+      `Open ${projectName}, follow the requested workflow, and narrate only the claims that survived review. ` +
+      `Use the submitted context as direction, not as proof of unsupported metrics.`,
     claims: [
       {
-        id: "claim-user-input",
-        text: shortClaim,
+        id: "claim-1",
+        text: `The demo request targets ${projectName}.`,
         status: "user_provided",
         sourceType: "user_input",
-        sourceTitle: "Founder note",
-        explanation: "This comes directly from the user input and has not been independently verified.",
+        sourceTitle: "Demo request",
+        sourceUrl: projectUrl ?? null,
+        explanation: "The product name and URL come from the submitted request.",
       },
-      ...demoPitchPack.claims.slice(0, 2),
+      ...demoBriefFixture.claims.slice(1),
     ],
-    readmeSnippet: `## ${projectName}\n\n${trimmed}\n\nGenerated local pack: add API credentials to produce live research and stricter claim verification.`,
   };
 }
