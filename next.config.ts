@@ -10,7 +10,6 @@ const renderRouteIncludes = [
   "./node_modules/hyperframes/**/*",
   "./node_modules/linkedom/**/*",
   "./node_modules/mime-types/**/*",
-  "./node_modules/onnxruntime-node/**/*",
   "./node_modules/puppeteer-core/**/*",
   "./node_modules/sharp/**/*",
   "./node_modules/zod/**/*",
@@ -23,7 +22,7 @@ const renderRouteExcludes = [
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   devIndicators: false,
-  serverExternalPackages: ["hyperframes", "onnxruntime-node", "sharp"],
+  serverExternalPackages: ["hyperframes", "sharp"],
   outputFileTracingIncludes: {
     "/api/launch-packs/\\[id\\]/render": renderRouteIncludes,
     "/api/launch-packs/[id]/render": renderRouteIncludes,
