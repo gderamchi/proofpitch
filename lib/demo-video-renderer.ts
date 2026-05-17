@@ -503,25 +503,63 @@ function assertSafeHyperFramesHtml(html: string) {
   assertSafeHyperFramesResources(html);
 }
 
-function ensureHyperFramesCompositionRoot(html: string, durationSeconds: number) {
-  if (html.includes("data-composition-id")) {
-    return html;
+function hasHtmlAttribute(attributes: string, name: string) {
+  return new RegExp(`\\b${name}\\s*=`, "i").test(attributes);
+}
+
+function withMissingCompositionAttributes({
+  attributes,
+  duration,
+  includeCompositionId,
+  tag,
+}: {
+  attributes: string;
+  duration: number;
+  includeCompositionId: boolean;
+  tag: string;
+}) {
+  const additions = [
+    includeCompositionId && !hasHtmlAttribute(attributes, "data-composition-id")
+      ? 'data-composition-id="proofpitch-product-demo"'
+      : "",
+    hasHtmlAttribute(attributes, "data-start") ? "" : 'data-start="0"',
+    hasHtmlAttribute(attributes, "data-duration") ? "" : `data-duration="${duration}"`,
+    hasHtmlAttribute(attributes, "data-width") ? "" : 'data-width="1920"',
+    hasHtmlAttribute(attributes, "data-height") ? "" : 'data-height="1080"',
+  ].filter(Boolean);
+
+  if (!additions.length) {
+    return `<${tag}${attributes}>`;
   }
 
+  const separator = attributes && !/\s$/.test(attributes) ? " " : "";
+
+  return `<${tag}${attributes}${separator}${additions.join(" ")}>`;
+}
+
+export function ensureHyperFramesCompositionRoot(html: string, durationSeconds: number) {
   const duration = Math.max(1, Math.min(600, Math.round(durationSeconds || 24)));
+  const rootWithCompositionId = /<(main|section|div)\b([^>]*\bdata-composition-id\s*=\s*["'][^"']+["'][^>]*)>/i;
 
-  return html.replace(/<(main|section|div)\b([^>]*)>/i, (match, tag: string, rawAttributes: string) => {
-    const attributes = rawAttributes || "";
-    const additions = [
-      'data-composition-id="proofpitch-product-demo"',
-      attributes.includes("data-start=") ? "" : 'data-start="0"',
-      attributes.includes("data-duration=") ? "" : `data-duration="${duration}"`,
-      attributes.includes("data-width=") ? "" : 'data-width="1920"',
-      attributes.includes("data-height=") ? "" : 'data-height="1080"',
-    ].filter(Boolean);
+  if (rootWithCompositionId.test(html)) {
+    return html.replace(rootWithCompositionId, (_match, tag: string, rawAttributes: string) =>
+      withMissingCompositionAttributes({
+        attributes: rawAttributes || "",
+        duration,
+        includeCompositionId: false,
+        tag,
+      }),
+    );
+  }
 
-    return `<${tag}${attributes} ${additions.join(" ")}>`;
-  });
+  return html.replace(/<(main|section|div)\b([^>]*)>/i, (_match, tag: string, rawAttributes: string) =>
+    withMissingCompositionAttributes({
+      attributes: rawAttributes || "",
+      duration,
+      includeCompositionId: true,
+      tag,
+    }),
+  );
 }
 
 async function runCommand(command: string, args: string[], cwd = process.cwd()) {

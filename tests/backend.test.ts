@@ -198,6 +198,18 @@ describe("demo video routes", () => {
 });
 
 describe("video renderer voiceover behavior", () => {
+  it("fills required HyperFrames root attributes when GPT omits them", async () => {
+    const { ensureHyperFramesCompositionRoot } = await import("../lib/demo-video-renderer");
+    const html = '<main class="shell" data-composition-id="proofpitch-product-demo"><div></div></main>';
+    const normalized = ensureHyperFramesCompositionRoot(html, 24);
+
+    expect(normalized).toContain('data-composition-id="proofpitch-product-demo"');
+    expect(normalized).toContain('data-start="0"');
+    expect(normalized).toContain('data-duration="24"');
+    expect(normalized).toContain('data-width="1920"');
+    expect(normalized).toContain('data-height="1080"');
+  });
+
   it("returns captions-only voiceover when Gradium is not configured", async () => {
     const { synthesizeVoiceoverForDemo } = await import("../lib/demo-video-renderer");
     const tmp = await mkdtemp(path.join(os.tmpdir(), "proofpitch-voiceover-"));
