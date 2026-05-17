@@ -10,9 +10,9 @@
 - `demoGoal`
 - `demoInstructions`
 
-## Proof Review
+## Internal Claim Filtering
 
-Only accepted non-unsupported claims may feed the final captions and voiceover script. Unsupported claims remain visible for review but cannot be accepted.
+Weak or unsupported claims must not feed the final captions or voiceover script. The claim ledger is internal generation metadata, not a user-facing step.
 
 ## Rendering
 

@@ -4,11 +4,9 @@ import { generateDemoBriefWithRunLogs } from "./demo-brief";
 import { captureDemoVideo } from "./demo-capture";
 import { getLocalDemoVideoProject, saveLocalDemoVideoProject, updateLocalDemoVideoProject } from "./local-store";
 import {
-  ApproveProofReviewRequestSchema,
   CreateDemoVideoRequestSchema,
   DemoVideoProjectSchema,
   RenderDemoVideoRequestSchema,
-  type ApproveProofReviewRequest,
   type Claim,
   type CreateDemoVideoRequest,
   type DemoBrief,
@@ -43,7 +41,7 @@ export class DemoVideoProjectNotFoundError extends Error {
 
 function defaultAcceptedClaimIds(demoBrief: DemoBrief) {
   return demoBrief.claims
-    .filter((claim) => claim.status !== "unsupported")
+    .filter((claim) => claim.status === "supported" || claim.status === "user_provided")
     .map((claim) => claim.id);
 }
 
@@ -52,7 +50,7 @@ function buildProofReview(demoBrief: DemoBrief) {
   const accepted = new Set(acceptedClaimIds);
 
   return {
-    status: "pending" as const,
+    status: "approved" as const,
     acceptedClaimIds,
     rejectedClaimIds: demoBrief.claims
       .filter((claim) => !accepted.has(claim.id))
@@ -86,9 +84,9 @@ function buildVoiceoverScript({
   proofReview: DemoVideoProject["proofReview"];
 }) {
   const accepted = acceptedClaims({ demoBrief, proofReview });
-  const proofLine = accepted[0]?.text
-    ? `The proof to narrate is: ${accepted[0].text}.`
-    : "No reviewed proof claim is ready yet, so keep the narration factual and screen-based.";
+  const evidenceLine = accepted[0]?.text
+    ? `Keep the narration grounded in this verified product context: ${accepted[0].text}.`
+    : "Keep the narration factual and screen-based.";
 
   return [
     `This is ${input.productName}.`,
@@ -96,9 +94,9 @@ function buildVoiceoverScript({
     `The goal is: ${input.demoGoal}.`,
     input.demoInstructions ? `Follow this path: ${input.demoInstructions}.` : `Open ${input.sourceUrl} and follow the clearest visible product workflow.`,
     compact(demoBrief.demoNarrative, 420),
-    proofLine,
+    evidenceLine,
     ...demoBrief.demoSteps.slice(0, 4).map((step, index) => `Step ${index + 1}: ${step}`),
-    "Close by inviting the viewer to inspect the product screen and the accepted proof claim.",
+    "Close by returning to the product screen and the primary call to action.",
   ].join(" ");
 }
 
@@ -116,7 +114,7 @@ function buildCaptions({
   return [
     `${input.productName}: ${demoBrief.oneLiner}`,
     compact(input.demoGoal, 140),
-    accepted[0]?.text ? `Proof: ${compact(accepted[0].text, 150)}` : "Proof review controls the final narration.",
+    accepted[0]?.text ? compact(accepted[0].text, 150) : "Follow the clearest visible product workflow.",
     ...demoBrief.demoSteps.slice(0, 3),
   ].slice(0, 6);
 }
@@ -196,49 +194,21 @@ function buildDemoVideo({
   };
 }
 
-function projectInput(project: DemoVideoProject): CreateDemoVideoRequest {
-  return {
-    sourceUrl: project.sourceUrl,
-    productName: project.productName,
-    targetAudience: project.targetAudience,
-    demoGoal: project.demoGoal,
-    demoInstructions: project.demoInstructions,
-  };
+function stableDemoVideoUrl(projectId: string) {
+  return `/api/demo-videos/${projectId}/video`;
 }
 
-function refreshNarration(project: DemoVideoProject): DemoVideoProject {
-  const input = projectInput(project);
-  const script = buildVoiceoverScript({
-    demoBrief: project.demoBrief,
-    input,
-    proofReview: project.proofReview,
-  });
-  const captions = buildCaptions({
-    demoBrief: project.demoBrief,
-    input,
-    proofReview: project.proofReview,
-  });
+function normalizeDemoVideoProject(project: DemoVideoProject) {
+  if (project.demoVideo.status !== "ready") {
+    return project;
+  }
 
   return DemoVideoProjectSchema.parse({
     ...project,
-    captions,
     demoVideo: {
       ...project.demoVideo,
-      renderSpec: project.demoVideo.renderSpec
-        ? {
-            ...project.demoVideo.renderSpec,
-            captions,
-            voiceoverScript: script,
-          }
-        : project.demoVideo.renderSpec,
+      url: stableDemoVideoUrl(project.id),
     },
-    voiceover: {
-      status: project.voiceover.status === "ready" ? "pending" : project.voiceover.status,
-      provider: "gradium",
-      script,
-      reason: project.voiceover.status === "captions_only" ? project.voiceover.reason : undefined,
-    },
-    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -381,51 +351,6 @@ export async function createDemoVideoProject(input: CreateDemoVideoRequest): Pro
   return project;
 }
 
-export async function approveDemoVideoProofReview(
-  id: string,
-  input: ApproveProofReviewRequest,
-): Promise<DemoVideoProject | null> {
-  const approval = ApproveProofReviewRequestSchema.parse(input);
-  const detail = await getDemoVideoProjectDetail(id);
-
-  if (!detail && approval.project?.id !== id) {
-    return null;
-  }
-
-  const base = detail?.project ?? approval.project;
-
-  if (!base) {
-    return null;
-  }
-
-  const accepted = new Set(approval.acceptedClaimIds);
-  const safeAcceptedClaimIds = base.demoBrief.claims
-    .filter((claim) => accepted.has(claim.id) && claim.status !== "unsupported")
-    .map((claim) => claim.id);
-
-  if (!safeAcceptedClaimIds.length) {
-    throw new Error("Accept at least one supported, weak, or user-provided claim for the demo narration.");
-  }
-
-  const safeAccepted = new Set(safeAcceptedClaimIds);
-  const updated = refreshNarration({
-    ...base,
-    status: "completed",
-    proofReview: {
-      status: "approved",
-      acceptedClaimIds: safeAcceptedClaimIds,
-      rejectedClaimIds: base.demoBrief.claims
-        .filter((claim) => !safeAccepted.has(claim.id))
-        .map((claim) => claim.id),
-    },
-    updatedAt: new Date().toISOString(),
-  });
-
-  await persistDemoVideoProject(updated);
-
-  return updated;
-}
-
 async function uploadRenderedAsset({
   contentType,
   localPath,
@@ -564,7 +489,7 @@ export async function startDemoVideoRender(
     }
   }
 
-  const videoUrl = uploadedVideoUrl ?? result.videoUrl;
+  const videoUrl = videoArtifact ? stableDemoVideoUrl(id) : result.videoUrl;
   const voiceoverAudioUrl = uploadedVoiceoverUrl ?? result.voiceover.audioUrl;
   const updated = DemoVideoProjectSchema.parse({
     ...project,
@@ -577,7 +502,7 @@ export async function startDemoVideoRender(
           durationSeconds: project.demoVideo.durationSeconds && project.demoVideo.durationSeconds > 0
             ? project.demoVideo.durationSeconds
             : 24,
-          uploadStatus: videoUrl.startsWith("http") ? "uploaded" : "not_required",
+          uploadStatus: uploadedVideoUrl || videoUrl.startsWith("http") ? "uploaded" : "not_required",
           error: undefined,
         }
       : result.error
@@ -605,6 +530,7 @@ export async function startDemoVideoRender(
     project: updated,
     render: result,
     uploadWarnings,
+    remoteVideoUrl: uploadedVideoUrl,
     videoUrl,
   };
 }
@@ -638,7 +564,7 @@ async function getSupabaseDemoVideoProject(id: string): Promise<DemoVideoProject
   }
 
   return {
-    project: DemoVideoProjectSchema.parse((project as { output_json: unknown }).output_json),
+    project: normalizeDemoVideoProject(DemoVideoProjectSchema.parse((project as { output_json: unknown }).output_json)),
   };
 }
 
@@ -656,6 +582,6 @@ export async function getDemoVideoProjectDetail(id: string): Promise<DemoVideoPr
   }
 
   return {
-    project: stored.project,
+    project: normalizeDemoVideoProject(stored.project),
   };
 }

@@ -184,28 +184,25 @@ async function main() {
   await replaceText(
     page,
     page.getByPlaceholder("Demo goal"),
-    "Show the product URL to proof-aware demo video workflow.",
+    "Show the product URL to generated demo video workflow.",
     "launch goal",
   );
   await replaceText(
     page,
-    page.getByPlaceholder(/Demo path/),
-    "Open the page, review the form, show the proof review, then render the demo video.",
+    page.getByPlaceholder(/Optional path/),
+    "Open the page, show the input form, render the demo video, then show the playable MP4.",
     "demo path",
   );
 
-  await click(page, page.getByRole("button", { name: /Generate demo brief/i }), "generate brief");
-  await page.waitForSelector("text=Proof review");
+  await click(page, page.getByRole("button", { name: /Generate video/i }), "generate video");
+  await page.waitForSelector("text=Rendering MP4");
   await page.waitForTimeout(1200);
 
-  await moveTo(page, page.getByText("Proof review"), "proof review", { x: 0.3, y: 0.5 });
+  await moveTo(page, page.getByText("Rendering MP4"), "rendering video", { x: 0.5, y: 0.5 });
   await page.waitForTimeout(1000);
 
-  await click(page, page.getByRole("button", { name: /Approve for narration/i }), "approve narration");
-  await page.waitForSelector("text=Narration ready");
-  await page.waitForTimeout(1200);
-  await moveTo(page, page.getByText("Video brief"), "video brief", { x: 0.4, y: 0.5 });
-  await page.waitForTimeout(3600);
+  await moveTo(page, page.getByText("Status"), "status details", { x: 0.4, y: 0.5 });
+  await page.waitForTimeout(4800);
 
   const rawVideoPath = await page.video().path();
   await context.close();

@@ -70,13 +70,13 @@ function titleFromUrl(url: string) {
 
 function buildRawDemoInput(input: CreateDemoVideoRequest) {
   return [
-    `${input.productName} needs a proof-aware product demo video with voiceover-ready narration.`,
+    `${input.productName} needs a product demo video with voiceover-ready narration.`,
     `Audience: ${input.targetAudience}.`,
     `Demo goal: ${input.demoGoal.replace(/\s+/g, " ").trim()}.`,
     input.demoInstructions
       ? `Demo path: ${input.demoInstructions}.`
       : "Demo path: infer the strongest public product walkthrough from the product URL.",
-    "Create conservative narration and keep unsupported claims reviewable.",
+    "Create conservative narration and keep unsupported claims out of captions and voiceover.",
   ].join("\n");
 }
 

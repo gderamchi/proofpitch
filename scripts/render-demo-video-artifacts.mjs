@@ -10,7 +10,7 @@ const outputDir = path.resolve(
 const specPath = path.join(outputDir, "hyperframes-spec.json");
 const sampleSpec = {
   productName: "ProofPitch",
-  oneLiner: "Turn a product URL into a proof-aware demo video with reviewable narration claims.",
+  oneLiner: "Turn a product URL into a generated demo video with voiceover-ready narration.",
   sourceUrl: "https://proofpitch.vercel.app",
   screenshots: [
     {
@@ -22,16 +22,16 @@ const sampleSpec = {
   demoSteps: [
     "Open the public product URL.",
     "Show the demo-video form.",
-    "Review proof claims that feed captions and voiceover.",
     "Render the HyperFrames MP4.",
+    "Play the final video from the stable endpoint.",
   ],
   captions: [
-    "Proof-aware demo video.",
-    "Accepted claims become narration.",
-    "Missing Gradium config uses captions-only.",
+    "Generated demo video.",
+    "HyperFrames renders the MP4.",
+    "Gradium adds voiceover when configured.",
   ],
   voiceoverScript:
-    "This ProofPitch demo opens the product URL, reviews the claims used for narration, and renders a HyperFrames product walkthrough video.",
+    "This ProofPitch demo opens the product URL, follows the requested workflow, and renders a HyperFrames product walkthrough video.",
   designNotes: "Use ProofPitch's square bordered panels, pale green canvas, readable captions, and restrained teal emphasis.",
   researchSummary: "Sample local render fixture.",
 };

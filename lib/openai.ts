@@ -84,7 +84,7 @@ export async function generateDemoBriefWithOpenAI({
         body: JSON.stringify({
           model,
           instructions:
-            "You are ProofPitch, a proof-aware product demo planner. Produce concise, defensible demo output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. The accepted claims will feed video captions and voiceover narration, so every claim must be safe to review.",
+            "You are ProofPitch, a product demo video planner. Produce concise, defensible demo output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. Only supported or user-provided claims may feed video captions and voiceover narration.",
           input: [
             {
               role: "user",
@@ -106,7 +106,7 @@ export async function generateDemoBriefWithOpenAI({
                     "Rules:",
                     "- The two-minute script must narrate a real product walkthrough, not a slide deck.",
                     "- Claim explanations must say exactly why a claim is supported, weak, unsupported, or only user-provided.",
-                    "- Unsupported claims must remain in the ledger for review but must not be necessary for the demo narrative.",
+                    "- Unsupported claims must remain internal metadata and must not be necessary for the demo narrative.",
                     "- Provider usage must describe real intended use of OpenAI, Tavily, and Pioneer. Use an empty string only if a provider is not used.",
                     "- Do not describe pitch decks, PDF exports, Slidev, pricing, checkout, or publishing workflows as product outputs.",
                   ].join("\n"),

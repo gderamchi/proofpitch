@@ -2,17 +2,17 @@ import type { DemoBrief } from "./schemas";
 
 export const demoBriefFixture: DemoBrief = {
   projectName: "ProofPitch",
-  oneLiner: "Turn a public product URL into a proof-aware demo video with reviewable claims.",
+  oneLiner: "Turn a public product URL into a generated demo video with voiceover-ready narration.",
   targetUser: "Founder-led B2B teams",
   demoNarrative:
-    "Open the product, follow the requested workflow, pause on the strongest proof moment, and narrate only claims that survived review.",
+    "Open the product, follow the requested workflow, pause on the strongest product moment, and narrate only supported or user-provided claims.",
   demoScript2Min:
-    "Start with the product URL and explain who the demo is for. Walk through the primary product path, call out the proof that is visible on screen, and avoid unsupported metrics. End by telling the viewer which claim was validated and what to inspect next.",
+    "Start with the product URL and explain who the demo is for. Walk through the primary product path, call out what is visible on screen, and avoid unsupported metrics. End with the next action to inspect.",
   demoSteps: [
     "Open the public product URL.",
     "Follow the requested demo path or the clearest visible workflow.",
-    "Pause on the strongest proof moment.",
-    "Close with the accepted proof claim and next action.",
+    "Pause on the strongest product moment.",
+    "Close with the primary next action.",
   ],
   claims: [
     {
@@ -26,12 +26,12 @@ export const demoBriefFixture: DemoBrief = {
     },
     {
       id: "claim-2",
-      text: "ProofPitch separates unsupported claims from the final narration.",
+      text: "ProofPitch keeps unsupported claims out of the final narration.",
       status: "supported",
       sourceType: "user_input",
       sourceTitle: "ProofPitch workflow",
       sourceUrl: null,
-      explanation: "The proof review gate controls which claims feed captions and voiceover.",
+      explanation: "Internal claim filtering controls which claims feed captions and voiceover.",
     },
   ],
   providerUsage: {
@@ -44,7 +44,6 @@ export const demoBriefFixture: DemoBrief = {
     "Narration should not include unsupported traction, revenue, or performance metrics.",
   ],
   nextSteps: [
-    "Review accepted claims before rendering.",
     "Render the HyperFrames MP4 and inspect it before sharing.",
   ],
 };
@@ -56,10 +55,10 @@ export function buildFallbackDemoBrief(rawInput: string, projectUrl?: string): D
   return {
     ...demoBriefFixture,
     projectName,
-    oneLiner: `${projectName} gets a proof-aware product demo from the submitted URL.`,
+    oneLiner: `${projectName} gets a generated product demo from the submitted URL.`,
     demoNarrative: `The demo should show ${projectName} through the safest visible product path, using this context: ${trimmed.slice(0, 220)}.`,
     demoScript2Min:
-      `Open ${projectName}, follow the requested workflow, and narrate only the claims that survived review. ` +
+      `Open ${projectName}, follow the requested workflow, and narrate only supported or user-provided claims. ` +
       `Use the submitted context as direction, not as proof of unsupported metrics.`,
     claims: [
       {

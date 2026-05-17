@@ -22,10 +22,10 @@ Open `/` on desktop and mobile widths.
 Verify:
 
 - product URL form is the first screen
-- proof review appears after generation
-- accepted claims update narration content
 - render action is available
-- output panel shows video, voiceover state, provider state, screenshots, captions, and accepted proof
+- output panel centers the playable video
+- provider state, screenshots, captions, and narration script are behind expandable controls
+- Open MP4 uses `/api/demo-videos/:id/video` and returns `video/mp4`
 - no removed product surfaces are visible
 
 ## API Smoke
@@ -37,12 +37,12 @@ curl -fsS -X POST http://localhost:3000/api/demo-videos \
     "sourceUrl": "https://proofpitch.vercel.app",
     "productName": "ProofPitch",
     "targetAudience": "Founder-led B2B teams",
-    "demoGoal": "Show the product URL to proof-aware demo video workflow.",
-    "demoInstructions": "Open the page, review proof, then render the demo video."
+    "demoGoal": "Show the product URL to generated demo video workflow.",
+    "demoInstructions": "Open the page, show the input form, render the demo video, then show the playable MP4."
   }'
 ```
 
-Then approve at least one returned claim through `/api/demo-videos/:id/proof-review` and render through `/api/demo-videos/:id/render`.
+Then render through `/api/demo-videos/:id/render` and verify `/api/demo-videos/:id/video` returns `video/mp4`.
 
 ## Production Smoke
 

@@ -3,14 +3,12 @@
 import {
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
-  Clipboard,
+  ChevronDown,
   Download,
   ExternalLink,
   Loader2,
   Mic2,
   RefreshCw,
-  ShieldCheck,
   Video,
 } from "lucide-react";
 import Image from "next/image";
@@ -22,8 +20,8 @@ const sampleInput = {
   sourceUrl: "https://proofpitch.vercel.app",
   productName: "ProofPitch",
   targetAudience: "Founder-led B2B teams",
-  demoGoal: "Show the product URL to proof-aware demo video workflow.",
-  demoInstructions: "Open the page, review the form, show the proof review, then render the demo video.",
+  demoGoal: "Show the product URL to generated demo video workflow.",
+  demoInstructions: "",
 };
 
 type RenderVideoResponse = {
@@ -85,14 +83,6 @@ function compact(value: string, max = 140) {
   return `${normalized.slice(0, max - 3).replace(/\s+\S*$/, "")}...`;
 }
 
-function claimStatusLabel(status: string) {
-  return status.replaceAll("_", " ");
-}
-
-function canUseClaim(status: string) {
-  return status !== "unsupported";
-}
-
 function downloadUrl(url: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -104,18 +94,21 @@ function downloadUrl(url: string) {
 
 function EmptyOutput() {
   return (
-    <div className="grid min-h-[440px] content-between border-2 border-stone-950 bg-white p-5 shadow-[10px_10px_0_#111827]">
-      <div>
+    <div className="grid min-h-[440px] content-center gap-5 border-2 border-stone-950 bg-white p-5 shadow-[10px_10px_0_#111827]">
+      <div className="mx-auto grid max-w-xl justify-items-center text-center">
         <p className="text-xs font-semibold uppercase tracking-normal text-stone-500">Output</p>
-        <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-stone-950">
-          Demo video, proof review, and voiceover state.
+        <h2 className="mt-4 text-3xl font-semibold leading-tight text-stone-950">
+          Your demo video will appear here.
         </h2>
+        <p className="mt-3 text-sm leading-6 text-stone-600">
+          Enter a product URL and ProofPitch will generate the walkthrough, render the MP4, and attach voiceover when Gradium is configured.
+        </p>
       </div>
-      <div className="grid gap-3">
+      <div className="mx-auto grid w-full max-w-md gap-3">
         {[
-          ["Proof-aware brief", ShieldCheck],
           ["HyperFrames MP4", Video],
-          ["Gradium or captions-only", Mic2],
+          ["Stable video endpoint", ExternalLink],
+          ["Gradium voiceover", Mic2],
         ].map(([label, Icon]) => (
           <div key={label as string} className="flex items-center gap-3 border border-stone-300 bg-white px-4 py-3 text-sm text-stone-700">
             <Icon size={16} className="text-stone-900" />
@@ -141,102 +134,34 @@ function ProviderStrip({ project }: { project: DemoVideoProject }) {
   );
 }
 
-function ProofReview({
-  acceptedClaimIds,
-  isApproving,
-  onApprove,
-  onToggleClaim,
-  project,
+function DetailPanel({
+  children,
+  title,
 }: {
-  acceptedClaimIds: string[];
-  isApproving: boolean;
-  onApprove: () => Promise<void>;
-  onToggleClaim: (claimId: string) => void;
-  project: DemoVideoProject;
+  children: React.ReactNode;
+  title: string;
 }) {
-  const acceptedSet = new Set(acceptedClaimIds);
-  const approved = project.proofReview.status === "approved";
-  const canApprove = acceptedClaimIds.length > 0 && !approved;
-
   return (
-    <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-stone-950">Proof review</p>
-          <p className="mt-1 text-xs leading-5 text-stone-600">
-            Accepted claims become captions and voiceover material.
-          </p>
-        </div>
-        <span className={`border px-2 py-1 text-xs font-semibold ${statusTone(project.proofReview.status)}`}>
-          {project.proofReview.status}
-        </span>
-      </div>
-
-      <div className="grid gap-2">
-        {project.demoBrief.claims.map((claim) => {
-          const blocked = !canUseClaim(claim.status);
-
-          return (
-            <label
-              key={claim.id}
-              className={`flex gap-3 border bg-white p-3 text-sm leading-6 ${
-                blocked ? "border-red-200 text-stone-500" : "border-stone-300 text-stone-800"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={!blocked && acceptedSet.has(claim.id)}
-                disabled={blocked || approved}
-                onChange={() => onToggleClaim(claim.id)}
-                className="mt-1 h-4 w-4 shrink-0 accent-teal-800"
-              />
-              <span>
-                <span className="block text-[11px] font-semibold uppercase tracking-normal text-teal-800">
-                  {claimStatusLabel(claim.status)}
-                </span>
-                {claim.text}
-                <span className="mt-1 block text-xs text-stone-500">{claim.explanation}</span>
-              </span>
-            </label>
-          );
-        })}
-      </div>
-
-      {!approved ? (
-        <button
-          type="button"
-          onClick={onApprove}
-          disabled={!canApprove || isApproving}
-          className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isApproving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-          Approve for narration
-        </button>
-      ) : null}
-    </div>
+    <details className="group border border-stone-300 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-semibold text-stone-950">
+        {title}
+        <ChevronDown size={16} className="transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-stone-200 px-3 py-3">{children}</div>
+    </details>
   );
 }
 
 function OutputPreview({
-  acceptedClaimIds,
-  isApproving,
   isGenerating,
   isRenderingVideo,
-  onApproveProof,
-  onCopy,
   onRenderVideo,
-  onToggleClaim,
   project,
   renderMessage,
 }: {
-  acceptedClaimIds: string[];
-  isApproving: boolean;
   isGenerating: boolean;
   isRenderingVideo: boolean;
-  onApproveProof: () => Promise<void>;
-  onCopy: (text: string) => Promise<void>;
   onRenderVideo: () => Promise<void>;
-  onToggleClaim: (claimId: string) => void;
   project: DemoVideoProject | null;
   renderMessage: string | null;
 }) {
@@ -244,88 +169,48 @@ function OutputPreview({
     return <EmptyOutput />;
   }
 
-  const videoReady = project.demoVideo.status === "ready" && Boolean(project.demoVideo.url);
-  const acceptedClaims = project.demoBrief.claims.filter((claim) => project.proofReview.acceptedClaimIds.includes(claim.id));
+  const videoReady = project.demoVideo.status === "ready";
+  const videoUrl = `/api/demo-videos/${project.id}/video`;
 
   return (
     <div className="grid max-h-none min-h-[440px] gap-4 overflow-visible border-2 border-stone-950 bg-white p-5 shadow-[10px_10px_0_#111827] lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-normal text-stone-500">
-            {project.proofReview.status === "approved" ? "Narration ready" : "Proof review"}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-normal text-stone-500">Demo video</p>
           <h2 className="mt-2 text-2xl font-semibold leading-tight text-stone-950">{project.productName}</h2>
         </div>
-        <button
-          type="button"
-          onClick={() => onCopy(project.voiceover.script)}
-          className="inline-flex h-10 w-10 items-center justify-center border border-stone-900 bg-white text-stone-950 transition hover:bg-teal-50"
-          title="Copy voiceover script"
-          aria-label="Copy voiceover script"
-        >
-          <Clipboard size={16} />
-        </button>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.demoVideo.status)}`}>
-          Video: {project.demoVideo.status}
-          <p className="mt-1 text-xs font-normal leading-5">{project.demoVideo.uploadStatus.replaceAll("_", " ")}</p>
-        </div>
-        <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.voiceover.status)}`}>
-          Voiceover: {project.voiceover.status.replaceAll("_", " ")}
-          <p className="mt-1 text-xs font-normal leading-5">{project.voiceover.provider}</p>
-        </div>
-        <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.status)}`}>
-          Project: {project.status}
-          <p className="mt-1 text-xs font-normal leading-5">{project.proofReview.acceptedClaimIds.length} claims accepted</p>
+        <div className="flex flex-wrap gap-2">
+          <span className={`border px-3 py-2 text-xs font-semibold ${statusTone(project.demoVideo.status)}`}>
+            Video {project.demoVideo.status}
+          </span>
+          <span className={`border px-3 py-2 text-xs font-semibold ${statusTone(project.voiceover.status)}`}>
+            Audio {project.voiceover.status.replaceAll("_", " ")}
+          </span>
         </div>
       </div>
-
-      <ProviderStrip project={project} />
-
-      <div className="grid gap-2 border border-stone-300 bg-[#f8fbf8] p-3">
-        <p className="text-sm font-semibold text-stone-950">Video brief</p>
-        <p className="text-sm leading-6 text-stone-700">{project.demoBrief.oneLiner}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {project.captions.map((caption) => (
-            <div key={caption} className="border border-stone-300 bg-white px-3 py-2 text-xs leading-5 text-stone-700">
-              {caption}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <ProofReview
-        acceptedClaimIds={acceptedClaimIds}
-        isApproving={isApproving}
-        onApprove={onApproveProof}
-        onToggleClaim={onToggleClaim}
-        project={project}
-      />
 
       {videoReady ? (
         <div className="grid gap-3">
           <video
-            src={project.demoVideo.url}
+            src={videoUrl}
             controls
             playsInline
             preload="metadata"
-            className="aspect-video w-full border border-stone-900 bg-stone-950"
+            className="aspect-video w-full border border-stone-900 bg-stone-950 shadow-[6px_6px_0_#111827]"
           />
           <div className="flex flex-wrap items-center gap-2">
             <a
-              href={project.demoVideo.url}
+              href={videoUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 border border-stone-900 bg-white px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
             >
               <ExternalLink size={15} />
-              Open video
+              Open MP4
             </a>
             <button
               type="button"
-              onClick={() => project.demoVideo.url && downloadUrl(project.demoVideo.url)}
+              onClick={() => downloadUrl(videoUrl)}
               className="inline-flex items-center gap-2 border border-stone-900 bg-white px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-50"
             >
               <Download size={15} />
@@ -334,26 +219,34 @@ function OutputPreview({
           </div>
         </div>
       ) : (
-        <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
-          <p className="text-sm leading-6 text-stone-700">
-            Render captures the product path, assembles the HyperFrames MP4, and adds Gradium audio when configured.
-          </p>
-          <button
-            type="button"
-            onClick={() => void onRenderVideo()}
-            disabled={isRenderingVideo}
-            className="inline-flex w-fit items-center gap-2 bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-            {isRenderingVideo ? "Rendering video" : "Render demo video"}
-          </button>
+        <div className="grid aspect-video place-items-center border border-stone-900 bg-stone-950 p-6 text-center text-white shadow-[6px_6px_0_#111827]">
+          <div className="grid justify-items-center gap-4">
+            {isRenderingVideo ? <Loader2 size={34} className="animate-spin" /> : <Video size={34} />}
+            <div>
+              <p className="text-lg font-semibold">{isRenderingVideo ? "Rendering MP4" : "Video not rendered yet"}</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-stone-300">
+                {isRenderingVideo
+                  ? "Capturing the product flow, generating the composition, and rendering the video."
+                  : "Launch the render to create the final playable demo video."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void onRenderVideo()}
+              disabled={isRenderingVideo}
+              className="inline-flex items-center gap-2 bg-white px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+              {isRenderingVideo ? "Rendering" : "Render video"}
+            </button>
+          </div>
         </div>
       )}
 
-      {project.voiceover.reason ? (
-        <div className="flex gap-3 border border-sky-800 bg-sky-50 p-3 text-sm leading-6 text-sky-950">
-          <Mic2 size={16} className="mt-1 shrink-0" />
-          {project.voiceover.reason}
+      {renderMessage ? (
+        <div className="flex gap-3 border border-amber-800 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+          <AlertCircle size={16} className="mt-1 shrink-0" />
+          {renderMessage}
         </div>
       ) : null}
 
@@ -364,29 +257,73 @@ function OutputPreview({
         </div>
       ) : null}
 
-      {renderMessage ? (
-        <div className="flex gap-3 border border-amber-800 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
-          <AlertCircle size={16} className="mt-1 shrink-0" />
-          {renderMessage}
-        </div>
-      ) : null}
+      <div className="grid gap-2">
+        <DetailPanel title="Status">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.demoVideo.status)}`}>
+              Video: {project.demoVideo.status}
+              <p className="mt-1 text-xs font-normal leading-5">{project.demoVideo.uploadStatus.replaceAll("_", " ")}</p>
+            </div>
+            <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.voiceover.status)}`}>
+              Audio: {project.voiceover.status.replaceAll("_", " ")}
+              <p className="mt-1 text-xs font-normal leading-5">{project.voiceover.provider}</p>
+            </div>
+            <div className={`border px-4 py-3 text-sm font-semibold ${statusTone(project.status)}`}>
+              Project: {project.status}
+              <p className="mt-1 text-xs font-normal leading-5">Stored render state</p>
+            </div>
+          </div>
+          {project.voiceover.reason ? (
+            <div className="mt-3 flex gap-3 border border-sky-800 bg-sky-50 p-3 text-sm leading-6 text-sky-950">
+              <Mic2 size={16} className="mt-1 shrink-0" />
+              {project.voiceover.reason}
+            </div>
+          ) : null}
+        </DetailPanel>
 
-      <div className="grid gap-2 border border-stone-300 bg-white p-3">
-        <p className="text-sm font-semibold text-stone-950">Accepted narration proof</p>
-        {acceptedClaims.length ? (
-          <div className="grid gap-2">
-            {acceptedClaims.map((claim) => (
-              <p key={claim.id} className="border border-stone-300 bg-[#f8fbf8] px-3 py-2 text-xs leading-5 text-stone-700">
-                {compact(claim.text, 220)}
-              </p>
+        <DetailPanel title="Providers">
+          <ProviderStrip project={project} />
+        </DetailPanel>
+
+        <DetailPanel title="Captions">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {project.captions.map((caption) => (
+              <div key={caption} className="border border-stone-300 bg-[#f8fbf8] px-3 py-2 text-xs leading-5 text-stone-700">
+                {caption}
+              </div>
             ))}
           </div>
-        ) : (
-          <p className="text-xs leading-5 text-stone-500">Approve at least one claim before external use.</p>
-        )}
+        </DetailPanel>
+
+        <DetailPanel title="Source captures">
+          <div className="grid gap-2">
+            {project.screenshots.length ? (
+              project.screenshots.map((screenshot) => (
+                <a
+                  key={screenshot.id}
+                  href={screenshot.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between gap-3 border border-stone-300 bg-[#f8fbf8] px-3 py-2 text-xs leading-5 text-stone-700 transition hover:bg-teal-50"
+                >
+                  <span>{compact(screenshot.title, 120)}</span>
+                  <ExternalLink size={14} />
+                </a>
+              ))
+            ) : (
+              <p className="text-sm leading-6 text-stone-600">No screenshot was captured for this run.</p>
+            )}
+          </div>
+        </DetailPanel>
+
+        <DetailPanel title="Narration script">
+          <p className="text-sm leading-6 text-stone-700">{project.voiceover.script}</p>
+        </DetailPanel>
       </div>
 
-      {isGenerating ? <p className="text-sm text-stone-500">Refreshing output...</p> : null}
+      {isGenerating ? (
+        <p className="text-sm text-stone-500">Preparing the video run...</p>
+      ) : null}
     </div>
   );
 }
@@ -397,12 +334,9 @@ export function ProofPitchLanding() {
   const [targetAudience, setTargetAudience] = useState(sampleInput.targetAudience);
   const [demoGoal, setDemoGoal] = useState(sampleInput.demoGoal);
   const [demoInstructions, setDemoInstructions] = useState(sampleInput.demoInstructions);
-  const [acceptedClaimIds, setAcceptedClaimIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
   const [project, setProject] = useState<DemoVideoProject | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<string | null>(null);
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [renderMessage, setRenderMessage] = useState<string | null>(null);
 
@@ -410,7 +344,6 @@ export function ProofPitchLanding() {
     event.preventDefault();
     setIsGenerating(true);
     setError(null);
-    setCopyState(null);
     setRenderMessage(null);
 
     try {
@@ -424,7 +357,7 @@ export function ProofPitchLanding() {
           productName,
           targetAudience,
           demoGoal,
-          demoInstructions,
+          demoInstructions: demoInstructions.trim() || undefined,
         }),
       });
       const data = await response.json();
@@ -435,7 +368,8 @@ export function ProofPitchLanding() {
 
       const nextProject = data as DemoVideoProject;
       setProject(nextProject);
-      setAcceptedClaimIds(nextProject.proofReview.acceptedClaimIds);
+      setIsGenerating(false);
+      await renderDemoVideo(nextProject);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : "Demo video generation failed.");
     } finally {
@@ -443,51 +377,8 @@ export function ProofPitchLanding() {
     }
   }
 
-  async function copyText(text: string) {
-    await navigator.clipboard.writeText(text);
-    setCopyState("Copied");
-    window.setTimeout(() => setCopyState(null), 1500);
-  }
-
-  function toggleClaim(claimId: string) {
-    setAcceptedClaimIds((current) =>
-      current.includes(claimId) ? current.filter((id) => id !== claimId) : [...current, claimId],
-    );
-  }
-
-  async function approveProofReview() {
-    if (!project) {
-      return;
-    }
-
-    setIsApproving(true);
-    setError(null);
-    setRenderMessage(null);
-
-    try {
-      const response = await fetch(`/api/demo-videos/${project.id}/proof-review`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ acceptedClaimIds, project }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.detail ?? data?.error ?? "Proof review failed.");
-      }
-
-      setProject(data as DemoVideoProject);
-    } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : "Proof review failed.");
-    } finally {
-      setIsApproving(false);
-    }
-  }
-
-  async function renderDemoVideo() {
-    if (!project) {
+  async function renderDemoVideo(projectToRender = project) {
+    if (!projectToRender) {
       return;
     }
 
@@ -496,7 +387,7 @@ export function ProofPitchLanding() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/demo-videos/${project.id}/render`, {
+      const response = await fetch(`/api/demo-videos/${projectToRender.id}/render`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -504,7 +395,7 @@ export function ProofPitchLanding() {
         body: JSON.stringify({
           captureSite: true,
           dryRun: false,
-          project,
+          project: projectToRender,
           renderVideo: true,
         }),
       });
@@ -515,7 +406,7 @@ export function ProofPitchLanding() {
       }
 
       if (!data.render?.enabled) {
-        setProject(data.project ?? project);
+        setProject(data.project ?? projectToRender);
         setRenderMessage("Video render is disabled in this environment. Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 to render locally.");
         return;
       }
@@ -526,7 +417,7 @@ export function ProofPitchLanding() {
         throw new Error(data.render.error ?? "Video render did not finish.");
       }
 
-      setProject(data.project ?? project);
+      setProject(data.project ?? projectToRender);
       setRenderMessage("Demo video rendered.");
     } catch (renderError) {
       const message = renderError instanceof Error ? renderError.message : "Video render failed.";
@@ -567,10 +458,10 @@ export function ProofPitchLanding() {
 
           <div>
             <h1 className="max-w-3xl text-4xl font-semibold leading-[0.96] text-stone-950 sm:text-5xl lg:text-6xl">
-              Product URL to proof-aware demo video.
+              Product URL to demo video.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-stone-600">
-              The proof review controls what appears in captions and voiceover. Missing Gradium config falls back to captions-only.
+              Give it a URL and an optional path. ProofPitch renders the MP4 directly, with Gradium voiceover when production audio is configured.
             </p>
           </div>
 
@@ -582,6 +473,7 @@ export function ProofPitchLanding() {
               placeholder="Public product URL"
               type="url"
               required
+              suppressHydrationWarning
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <input
@@ -590,6 +482,7 @@ export function ProofPitchLanding() {
                 className="border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm outline-none focus:border-teal-800"
                 placeholder="Product name"
                 required
+                suppressHydrationWarning
               />
               <input
                 value={targetAudience}
@@ -597,6 +490,7 @@ export function ProofPitchLanding() {
                 className="border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm outline-none focus:border-teal-800"
                 placeholder="Target audience"
                 required
+                suppressHydrationWarning
               />
             </div>
             <textarea
@@ -606,13 +500,15 @@ export function ProofPitchLanding() {
               className="resize-none border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm leading-6 outline-none focus:border-teal-800"
               placeholder="Demo goal"
               required
+              suppressHydrationWarning
             />
             <textarea
               value={demoInstructions}
               onChange={(event) => setDemoInstructions(event.target.value)}
               rows={2}
               className="resize-none border border-stone-300 bg-[#f8fbf8] px-3 py-3 text-sm leading-6 outline-none focus:border-teal-800"
-              placeholder="Demo path, e.g. accept cookies, search Pricing, open the first result, scroll to the CTA"
+              placeholder="Optional path, e.g. accept cookies, open Pricing, scroll to the CTA"
+              suppressHydrationWarning
             />
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -621,7 +517,7 @@ export function ProofPitchLanding() {
                 className="inline-flex items-center gap-2 bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                {isGenerating ? "Generating" : "Generate demo brief"}
+                {isGenerating ? "Preparing" : "Generate video"}
               </button>
               {project ? (
                 <button
@@ -631,10 +527,9 @@ export function ProofPitchLanding() {
                   className="inline-flex items-center gap-2 border border-stone-900 bg-white px-5 py-3 text-sm font-semibold text-stone-950 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isRenderingVideo ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                  Render video
+                  Re-render video
                 </button>
               ) : null}
-              {copyState ? <span className="text-sm font-medium text-teal-800">{copyState}</span> : null}
               {error ? <span className="text-sm font-medium text-red-800">{error}</span> : null}
             </div>
           </form>
@@ -642,14 +537,9 @@ export function ProofPitchLanding() {
 
         <OutputPreview
           key={project?.id ?? "empty-output"}
-          acceptedClaimIds={acceptedClaimIds}
-          isApproving={isApproving}
           isGenerating={isGenerating}
           isRenderingVideo={isRenderingVideo}
-          onApproveProof={approveProofReview}
-          onCopy={copyText}
           onRenderVideo={renderDemoVideo}
-          onToggleClaim={toggleClaim}
           project={project}
           renderMessage={renderMessage}
         />

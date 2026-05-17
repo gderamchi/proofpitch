@@ -17,9 +17,9 @@ function buildProject(id = "local-demo"): DemoVideoProject {
     sourceUrl: "https://example.com",
     productName: "ProofPitch",
     targetAudience: "Founder-led B2B teams",
-    demoGoal: "Show the proof-aware demo flow.",
+    demoGoal: "Show the generated demo flow.",
     proofReview: {
-      status: "pending",
+      status: "approved",
       acceptedClaimIds: ["claim-1"],
       rejectedClaimIds: [],
     },
@@ -27,8 +27,8 @@ function buildProject(id = "local-demo"): DemoVideoProject {
       projectName: "ProofPitch",
       oneLiner: "Proof-aware demo video.",
       targetUser: "Founder-led B2B teams",
-      demoNarrative: "Show the product and accepted proof.",
-      demoScript2Min: "Open the product and narrate accepted proof.",
+      demoNarrative: "Show the product workflow.",
+      demoScript2Min: "Open the product and narrate the generated walkthrough.",
       demoSteps: ["Open the product."],
       claims: [
         {
@@ -59,7 +59,7 @@ function buildProject(id = "local-demo"): DemoVideoProject {
     voiceover: {
       status: "pending",
       provider: "gradium",
-      script: "Open the product and narrate accepted proof.",
+      script: "Open the product and narrate the generated walkthrough.",
     },
     providers: {
       openai: { state: "missing", detail: "missing" },

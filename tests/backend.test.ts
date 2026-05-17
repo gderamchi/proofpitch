@@ -17,8 +17,8 @@ const sampleInput: CreateDemoVideoRequest = {
   sourceUrl: "https://example.com",
   productName: "ProofPitch",
   targetAudience: "Founder-led B2B teams",
-  demoGoal: "Show a proof-aware product demo video.",
-  demoInstructions: "Open the page, review proof, then render the MP4.",
+  demoGoal: "Show a generated product demo video.",
+  demoInstructions: "Open the page, render the video, then play the MP4.",
 };
 
 function clearProviderEnv() {
@@ -46,7 +46,7 @@ describe("demo video schemas", () => {
   it("validates the video-first request contract and rejects deck mode", () => {
     expect(CreateDemoVideoRequestSchema.parse(sampleInput)).toMatchObject({
       productName: "ProofPitch",
-      demoGoal: "Show a proof-aware product demo video.",
+      demoGoal: "Show a generated product demo video.",
     });
     expect(() =>
       CreateDemoVideoRequestSchema.parse({
@@ -82,10 +82,10 @@ describe("demo video schemas", () => {
       ],
       demoSteps: ["Open the product."],
       captions: ["Proof-aware captions."],
-      voiceoverScript: "Open the product and narrate the accepted proof.",
+      voiceoverScript: "Open the product and narrate the generated walkthrough.",
     });
 
-    expect(spec.voiceoverScript).toContain("accepted proof");
+    expect(spec.voiceoverScript).toContain("generated walkthrough");
   });
 });
 
@@ -100,33 +100,22 @@ describe("public URL guards", () => {
 });
 
 describe("demo video service", () => {
-  it("creates a fallback demo project and feeds accepted claims into narration", async () => {
+  it("creates a fallback demo project with automatic narration context", async () => {
     const service = await import("../lib/demo-video-service");
     const created = await service.createDemoVideoProject(sampleInput);
 
     expect(DemoVideoProjectSchema.parse(created)).toMatchObject({
       productName: "ProofPitch",
-      proofReview: { status: "pending" },
+      proofReview: { status: "approved" },
       demoVideo: { status: "pending", renderer: "hyperframes" },
       voiceover: { status: "pending", provider: "gradium" },
     });
     expect(created).not.toHaveProperty("pitchDeck");
     expect(created).not.toHaveProperty("deckMode");
 
-    const acceptedClaim = created.demoBrief.claims[0];
-    const approved = await service.approveDemoVideoProofReview(created.id, {
-      acceptedClaimIds: [acceptedClaim.id],
-      project: created,
-    });
-
-    expect(approved?.proofReview).toMatchObject({
-      status: "approved",
-      acceptedClaimIds: [acceptedClaim.id],
-    });
-    expect(approved?.voiceover.script).toContain(acceptedClaim.text);
-    expect(approved?.captions.join(" ")).toContain("Proof:");
-
     const detail = await service.getDemoVideoProjectDetail(created.id);
+    expect(created.voiceover.script).toContain(sampleInput.productName);
+    expect(created.captions.join(" ")).not.toContain("Proof:");
     expect(detail?.project.proofReview.status).toBe("approved");
   });
 
@@ -148,9 +137,8 @@ describe("demo video service", () => {
 });
 
 describe("demo video routes", () => {
-  it("creates, approves, and returns disabled render state through public API routes", async () => {
+  it("creates and returns disabled render state through public API routes", async () => {
     const { POST: create } = await import("../app/api/demo-videos/route");
-    const { POST: approve } = await import("../app/api/demo-videos/[id]/proof-review/route");
     const { POST: render } = await import("../app/api/demo-videos/[id]/render/route");
 
     const createdResponse = await create(
@@ -160,22 +148,9 @@ describe("demo video routes", () => {
       }),
     );
     const created = (await createdResponse.json()) as DemoVideoProject;
-    const claim = created.demoBrief.claims[0];
 
     expect(createdResponse.status).toBe(200);
-    expect(created.proofReview.status).toBe("pending");
-
-    const approvedResponse = await approve(
-      new Request(`https://proofpitch.test/api/demo-videos/${created.id}/proof-review`, {
-        method: "POST",
-        body: JSON.stringify({ acceptedClaimIds: [claim.id], project: created }),
-      }),
-      { params: Promise.resolve({ id: created.id }) },
-    );
-    const approved = (await approvedResponse.json()) as DemoVideoProject;
-
-    expect(approvedResponse.status).toBe(200);
-    expect(approved.voiceover.script).toContain(claim.text);
+    expect(created.proofReview.status).toBe("approved");
 
     const renderResponse = await render(
       new Request(`https://proofpitch.test/api/demo-videos/${created.id}/render`, {
@@ -183,7 +158,7 @@ describe("demo video routes", () => {
         body: JSON.stringify({
           captureSite: true,
           dryRun: false,
-          project: approved,
+          project: created,
           renderVideo: true,
         }),
       }),
@@ -217,7 +192,7 @@ describe("video renderer voiceover behavior", () => {
     try {
       const result = await synthesizeVoiceoverForDemo({
         outputDir: tmp,
-        script: "Narrate the accepted proof claim.",
+        script: "Narrate the generated walkthrough.",
       });
 
       expect(result.voiceover.status).toBe("captions_only");
@@ -241,7 +216,7 @@ describe("video renderer voiceover behavior", () => {
     try {
       const result = await synthesizeVoiceoverForDemo({
         outputDir: tmp,
-        script: "Narrate the accepted proof claim.",
+        script: "Narrate the generated walkthrough.",
       });
 
       expect(result.voiceover.status).toBe("ready");
@@ -284,7 +259,7 @@ describe("video renderer voiceover behavior", () => {
       voiceover: {
         status: "pending",
         provider: "gradium",
-        script: "Narrate the accepted proof claim.",
+        script: "Narrate the generated walkthrough.",
       },
     });
 

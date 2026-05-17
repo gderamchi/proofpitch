@@ -1,16 +1,15 @@
 # Product Requirements
 
-ProofPitch turns a product URL into a proof-aware demo video with optional voiceover.
+ProofPitch turns a product URL into a generated demo video with optional voiceover.
 
 ## Primary User Story
 
-As a founder or GTM operator, I enter the product URL and the demo goal. ProofPitch returns a reviewed brief, lets me accept the proof claims that may be narrated, then renders an MP4 demo video with Gradium voiceover when configured or captions-only fallback when not configured.
+As a founder or GTM operator, I enter the product URL, the demo goal, and optionally a path to follow. ProofPitch renders an MP4 demo video with Gradium voiceover when configured or captions-only fallback when not configured.
 
 ## In Scope
 
 - Product URL, product name, target audience, demo goal, and demo instructions.
-- Proof-aware `DemoBrief`.
-- Claim review that controls captions and voiceover script.
+- Internal demo planning and claim filtering.
 - HyperFrames MP4 render path.
 - Gradium WAV TTS.
 - Captions-only fallback when Gradium env is missing.
@@ -28,7 +27,7 @@ As a founder or GTM operator, I enter the product URL and the demo goal. ProofPi
 ## Acceptance Criteria
 
 - The first screen is the demo-video workflow, not a marketing page.
-- The UI exposes proof review, render video, provider state, screenshots, captions, and final video preview.
-- Accepted claims appear in the narration script and captions.
+- The UI centers the final video preview, with provider state, screenshots, captions, and narration script tucked behind expandable controls.
+- The Open MP4 action uses `/api/demo-videos/:id/video`, not a short-lived signed storage URL.
 - Missing Gradium credentials do not fail rendering.
 - Removed product surfaces are not reachable from active routes.

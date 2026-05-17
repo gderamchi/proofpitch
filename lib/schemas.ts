@@ -160,11 +160,6 @@ export const DemoVideoProjectSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const ApproveProofReviewRequestSchema = z.object({
-  acceptedClaimIds: z.array(z.string()).min(1, "Accept at least one claim for the demo narration."),
-  project: DemoVideoProjectSchema.optional(),
-});
-
 export const RenderDemoVideoRequestSchema = z
   .object({
     captureSite: z.boolean().default(true),
@@ -190,7 +185,6 @@ export type HyperFramesRenderSpec = z.infer<typeof HyperFramesRenderSpecSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
 export type Voiceover = z.infer<typeof VoiceoverSchema>;
 export type DemoVideoProject = z.infer<typeof DemoVideoProjectSchema>;
-export type ApproveProofReviewRequest = z.infer<typeof ApproveProofReviewRequestSchema>;
 export type RenderDemoVideoRequest = z.infer<typeof RenderDemoVideoRequestSchema>;
 
 export const demoBriefJsonSchema = {

@@ -3,24 +3,22 @@
 ProofPitch is now a single video-first workflow:
 
 ```text
-product URL + product context -> proof-aware demo brief -> proof review -> HyperFrames MP4 -> Gradium voiceover or captions-only
+product URL + product context -> automatic demo plan -> HyperFrames MP4 -> Gradium voiceover or captions-only
 ```
 
-The deck, pitch-pack, PDF, markdown export, social draft, billing, project list, and usage-counter surfaces have been removed from the active app. Claim review remains because accepted claims feed the demo captions and the voiceover script.
+The deck, pitch-pack, PDF, markdown export, social draft, billing, project list, usage-counter, and proof-review surfaces have been removed from the active app.
 
 ## Product Flow
 
 1. Enter a public product URL, product name, target audience, demo goal, and optional demo instructions.
-2. `POST /api/demo-videos` creates a `DemoVideoProject` with a `DemoBrief`, proof claims, screenshots, captions, and a pending HyperFrames video.
-3. Review proof claims. `POST /api/demo-videos/:id/proof-review` marks accepted claims for narration.
-4. Render the video. `POST /api/demo-videos/:id/render` captures the product path, prepares a HyperFrames composition, and returns a local or Supabase-hosted MP4.
-5. If `GRADIUM_API_KEY` and `GRADIUM_VOICE_ID` are configured, Gradium generates a WAV voiceover. If either is missing, ProofPitch still renders the MP4 with visible captions and returns `voiceover.status = "captions_only"`.
+2. `POST /api/demo-videos` creates a `DemoVideoProject` with screenshots, captions, internal generation metadata, and a pending HyperFrames video.
+3. `POST /api/demo-videos/:id/render` captures the product path, prepares a HyperFrames composition, and returns a stable MP4 playback URL at `/api/demo-videos/:id/video`.
+4. If `GRADIUM_API_KEY` and `GRADIUM_VOICE_ID` are configured, Gradium generates a WAV voiceover. If either is missing, ProofPitch still renders the MP4 with visible captions and returns `voiceover.status = "captions_only"`.
 
 ## API
 
 - `POST /api/demo-videos`
 - `GET /api/demo-videos/:id`
-- `POST /api/demo-videos/:id/proof-review`
 - `POST /api/demo-videos/:id/render`
 - `GET /api/demo-videos/:id/video`
 - `GET /api/demo-videos/:id/recording`
@@ -97,9 +95,9 @@ curl -fsS -X POST "$PROD_BASE_URL/api/demo-videos" \
     "sourceUrl": "https://proofpitch.vercel.app",
     "productName": "ProofPitch",
     "targetAudience": "Founder-led B2B teams",
-    "demoGoal": "Show the product URL to proof-aware demo video workflow.",
-    "demoInstructions": "Open the page, review proof claims, then render the demo video."
+    "demoGoal": "Show the product URL to generated demo video workflow.",
+    "demoInstructions": "Open the page, show the input form, render the demo video, then show the playable MP4."
   }'
 ```
 
-The response is valid when it contains a `DemoVideoProject` with `demoBrief`, `proofReview`, `demoVideo.renderer = "hyperframes"`, `voiceover.provider = "gradium"`, and no deck/PDF/social draft fields.
+The response is valid when it contains a `DemoVideoProject` with `demoVideo.renderer = "hyperframes"`, `voiceover.provider = "gradium"`, and no deck/PDF/social draft fields. Render it through `/api/demo-videos/:id/render`, then verify `/api/demo-videos/:id/video` returns `video/mp4`.
