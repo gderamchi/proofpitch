@@ -77,6 +77,8 @@ function buildRawDemoInput(input: CreateDemoVideoRequest) {
       ? `Demo path: ${input.demoInstructions}.`
       : "Demo path: infer the strongest public product walkthrough from the product URL.",
     "Create conservative narration and keep unsupported claims out of captions and voiceover.",
+    "Claim filtering is internal only; do not create a proof review, claim review, narration approval, or video brief review step.",
+    "The visible flow is product context to generated MP4 video, with optional expandable status details after the video.",
   ].join("\n");
 }
 

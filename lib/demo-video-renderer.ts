@@ -735,6 +735,7 @@ async function generateHyperFramesWithOpenAI(renderSpec: HyperFramesRenderSpec):
                   "Requirements:",
                   "- Respect demoPath if present.",
                   "- If demoPath is absent, use researchSummary and visible site context to choose the most compelling demo path.",
+                  "- Do not include proof review, claim review, accepted-claim, narration approval, or video-brief review steps.",
                   "- Do not include pitch decks, slide previews, or PDF export language.",
                   "- The final composition should be inspectable, not a generic promo.",
                 ].join("\n"),

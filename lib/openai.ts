@@ -84,7 +84,7 @@ export async function generateDemoBriefWithOpenAI({
         body: JSON.stringify({
           model,
           instructions:
-            "You are ProofPitch, a product demo video planner. Produce concise, defensible demo output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. Only supported or user-provided claims may feed video captions and voiceover narration.",
+            "You are ProofPitch, a product demo video planner. Produce concise, defensible demo output. Do not invent metrics. Mark claims as user_provided, weak, supported, or unsupported. Only supported or user-provided claims may feed video captions and voiceover narration. Claim classification is internal metadata only; never turn it into a visible proof review, claim review, approval, or narration-review step.",
           input: [
             {
               role: "user",
@@ -107,6 +107,8 @@ export async function generateDemoBriefWithOpenAI({
                     "- The two-minute script must narrate a real product walkthrough, not a slide deck.",
                     "- Claim explanations must say exactly why a claim is supported, weak, unsupported, or only user-provided.",
                     "- Unsupported claims must remain internal metadata and must not be necessary for the demo narrative.",
+                    "- Do not include proof review, claim review, accepted-claim, narration approval, or video-brief review steps in demoNarrative, demoScript2Min, demoSteps, captions, or nextSteps.",
+                    "- The visible product flow is: enter product context, generate the video, render or play the MP4, then inspect optional expandable status/caption/provider details.",
                     "- Provider usage must describe real intended use of OpenAI, Tavily, and Pioneer. Use an empty string only if a provider is not used.",
                     "- Do not describe pitch decks, PDF exports, Slidev, pricing, checkout, or publishing workflows as product outputs.",
                   ].join("\n"),

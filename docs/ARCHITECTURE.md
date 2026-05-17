@@ -16,7 +16,7 @@ ProofPitch is a Next.js 16 app with a video-first backend.
 
 - `DemoVideoProject`: canonical persisted object.
 - `DemoBrief`: product summary, demo narrative, demo steps, claims, risks, and provider usage.
-- `ProofReview`: internal accepted and rejected claim ids used to keep unsupported claims out of generated narration.
+- Internal claim filter metadata: accepted and rejected claim ids used only to keep unsupported claims out of generated narration.
 - `DemoVideo`: HyperFrames render state and render spec.
 - `Voiceover`: Gradium script, state, audio URL, and fallback reason.
 
