@@ -224,7 +224,7 @@ describe("video renderer voiceover behavior", () => {
       expect(result.path).toBe(path.join(tmp, "voiceover.wav"));
       expect(await readFile(result.path as string)).toEqual(Buffer.from([82, 73, 70, 70]));
       expect(fetch).toHaveBeenCalledWith(
-        "https://api.gradium.ai/api/post/speech/tts",
+        "https://eu.api.gradium.ai/api/post/speech/tts",
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({

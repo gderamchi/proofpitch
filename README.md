@@ -42,6 +42,7 @@ PIONEER_MODEL_ID=fastino/gliner2-base-v1
 
 GRADIUM_API_KEY=
 GRADIUM_VOICE_ID=
+GRADIUM_API_BASE_URL=https://eu.api.gradium.ai
 
 PROOFPITCH_PLAYWRIGHT_CAPTURE=0
 PROOFPITCH_VIDEO_ASSET_DIR=.proofpitch/demo-video-assets

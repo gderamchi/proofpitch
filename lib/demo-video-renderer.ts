@@ -83,6 +83,7 @@ const hyperFramesGenerationJsonSchema = {
 
 const PROJECT_STORAGE_ID_PATTERN = /^[a-zA-Z0-9-]+$/;
 const ALLOWED_GSAP_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js";
+const DEFAULT_GRADIUM_API_BASE_URL = "https://eu.api.gradium.ai";
 const HYPERFRAMES_CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
@@ -145,6 +146,12 @@ export function renderedBrowserRecordingUrl(projectId: string) {
 
 export function renderedVoiceoverPath(projectId: string) {
   return path.join(outputDirForDemoVideo(projectId), "voiceover.wav");
+}
+
+function gradiumTextToSpeechUrl() {
+  const baseUrl = process.env.GRADIUM_API_BASE_URL || DEFAULT_GRADIUM_API_BASE_URL;
+
+  return `${baseUrl.replace(/\/+$/, "")}/api/post/speech/tts`;
 }
 
 function absoluteUrl(baseUrl: string | undefined, urlPath: string) {
@@ -867,7 +874,7 @@ export async function synthesizeVoiceoverForDemo({
 
   try {
     const response = await fetchWithRetry(
-      "https://api.gradium.ai/api/post/speech/tts",
+      gradiumTextToSpeechUrl(),
       {
         method: "POST",
         headers: {
@@ -1025,7 +1032,7 @@ export async function renderDemoVideoArtifacts({
   const videoPath = renderedDemoVideoPath(projectId);
   const renderSpecExists = Boolean(demoVideo.renderSpec);
   const voiceoverCommand = process.env.GRADIUM_API_KEY && process.env.GRADIUM_VOICE_ID
-    ? "POST https://api.gradium.ai/api/post/speech/tts"
+    ? `POST ${gradiumTextToSpeechUrl()}`
     : "captions-only voiceover fallback";
   const commands = renderSpecExists
       ? [
