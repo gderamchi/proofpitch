@@ -88,16 +88,18 @@ function buildVoiceoverScript({
     ? `Keep the narration grounded in this verified product context: ${accepted[0].text}.`
     : "Keep the narration factual and screen-based.";
 
-  return [
+  const script = [
     `This is ${input.productName}.`,
     `It is being demonstrated for ${input.targetAudience}.`,
     `The goal is: ${input.demoGoal}.`,
     input.demoInstructions ? `Follow this path: ${input.demoInstructions}.` : `Open ${input.sourceUrl} and follow the clearest visible product workflow.`,
-    compact(demoBrief.demoNarrative, 420),
+    compact(demoBrief.demoNarrative, 220),
     evidenceLine,
-    ...demoBrief.demoSteps.slice(0, 4).map((step, index) => `Step ${index + 1}: ${step}`),
+    ...demoBrief.demoSteps.slice(0, 2).map((step, index) => `Step ${index + 1}: ${step}`),
     "Close by returning to the product screen and the primary call to action.",
   ].join(" ");
+
+  return compact(script, 720);
 }
 
 function buildCaptions({
