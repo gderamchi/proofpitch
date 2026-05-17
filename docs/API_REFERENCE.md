@@ -116,7 +116,7 @@ Common errors:
 
 ### `POST /api/launch-packs/:id/render`
 
-Starts render work for approved deck assets and/or the Remotion demo video.
+Starts render work for approved deck assets and/or the HyperFrames demo video.
 
 Deck render request:
 
@@ -146,7 +146,7 @@ Behavior:
 - Otherwise it uses the deck-render path and returns `{ "launchPack": ..., "pitchDeck": ..., "render": ..., "requiresSignIn": false }`.
 - Local rendering requires `PROOFPITCH_ENABLE_LOCAL_RENDER=1`; production rendering is enabled by the Vercel server runtime.
 - Product-site capture is controlled by `PROOFPITCH_PLAYWRIGHT_CAPTURE`.
-- Production video rendering uses a serverless Chromium pack; override it with `PROOFPITCH_CHROMIUM_PACK_URL` when the default pack is unavailable.
+- Production video rendering requires a render worker with Node 22, Chrome, and FFmpeg available to HyperFrames.
 - Public video render requests prefer server-side lookup, but may include a full `launchPack` fallback when local serverless storage cannot find the id.
 - Public video render requests cannot set `force`; local rendering remains controlled only by server environment.
 - If Supabase admin env vars are configured, a ready MP4 is uploaded to the private `proofpitch-exports` bucket and returned as a signed URL.
@@ -160,7 +160,7 @@ Common errors:
 
 ### `GET /api/launch-packs/:id/video`
 
-Serves the locally rendered Remotion MP4 from the configured release asset directory.
+Serves the locally rendered HyperFrames MP4 from the configured release asset directory.
 
 Response:
 

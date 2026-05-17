@@ -483,6 +483,38 @@ export async function markLaunchPackDemoVideoReady({
   return updated;
 }
 
+export async function markLaunchPackDemoVideoFailed({
+  error,
+  id,
+  launchPack,
+}: {
+  error: string;
+  id: string;
+  launchPack?: LaunchPack;
+}) {
+  const detail = await getLaunchPackDetail(id);
+
+  if (!detail && launchPack?.id !== id) {
+    return null;
+  }
+
+  const base = detail?.launchPack ?? launchPack;
+
+  if (!base) {
+    return null;
+  }
+
+  const updated = patchDemoVideo(base, {
+    status: "failed",
+    uploadStatus: "blocked_by_provider_review",
+    error,
+  });
+
+  await persistLaunchPack(updated);
+
+  return updated;
+}
+
 export async function rebuildLaunchPackSocialDrafts(
   id: string,
   input: RefreshSocialDraftsRequest,

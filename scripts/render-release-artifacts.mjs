@@ -2,11 +2,13 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const outputDir = process.env.PROOFPITCH_RELEASE_ASSET_DIR
-  ? path.join(process.env.PROOFPITCH_RELEASE_ASSET_DIR, "latest")
-  : ".proofpitch/release-assets/latest";
+const outputDir = path.resolve(
+  process.env.PROOFPITCH_RELEASE_ASSET_DIR
+    ? path.join(process.env.PROOFPITCH_RELEASE_ASSET_DIR, "latest")
+    : ".proofpitch/release-assets/latest",
+);
 const deckPath = path.join(outputDir, "pitch-deck.md");
-const propsPath = path.join(outputDir, "remotion-props.json");
+const specPath = path.join(outputDir, "hyperframes-spec.json");
 const sampleDeck = `---
 theme: default
 title: "ProofPitch release deck"
@@ -28,7 +30,7 @@ ProofPitch turns public product context into an evidence-backed MVP pack.
 
 The demo video is generated from product walkthrough capture only.
 `;
-const sampleProps = {
+const sampleSpec = {
   productName: "ProofPitch",
   oneLiner: "Turn a product URL into a product demo path, separate pitch deck, and claim ledger.",
   sourceUrl: "https://example.com",
@@ -48,6 +50,8 @@ const sampleProps = {
     "Product demo and pitch deck stay separate.",
     "Claims stay reviewable before sharing.",
   ],
+  designNotes: "Use ProofPitch's square bordered panels, pale green canvas, and restrained teal emphasis.",
+  researchSummary: "Sample local render fixture.",
 };
 
 function run(command, args) {
@@ -71,21 +75,25 @@ function run(command, args) {
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(deckPath, sampleDeck, "utf8");
-await writeFile(propsPath, JSON.stringify(sampleProps, null, 2), "utf8");
+await writeFile(specPath, JSON.stringify(sampleSpec, null, 2), "utf8");
 
 if (process.env.PROOFPITCH_ENABLE_LOCAL_RENDER !== "1") {
-  console.log("Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 to run Slidev and Remotion renders.");
+  console.log("Set PROOFPITCH_ENABLE_LOCAL_RENDER=1 to run Slidev and HyperFrames renders.");
   console.log(`Prepared sample inputs in ${outputDir}`);
   process.exit(0);
 }
 
 await run("npx", ["@slidev/cli", "export", deckPath, "--format", "pdf", "--output", path.join(outputDir, "pitch-deck.pdf")]);
-await run("npx", [
-  "remotion",
+await run("npm", [
+  "--prefix",
+  "hyperframes/proofpitch-demo",
+  "run",
   "render",
-  "remotion/index.tsx",
-  "ProofPitchProductDemo",
+  "--",
+  "--output",
   path.join(outputDir, "demo-video.mp4"),
-  "--props",
-  propsPath,
+  "--quality",
+  "standard",
+  "--workers",
+  "1",
 ]);

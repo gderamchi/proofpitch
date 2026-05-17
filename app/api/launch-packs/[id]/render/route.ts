@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
-import { getLaunchPackDetail, markLaunchPackDemoVideoReady, startLaunchPackDeckRender } from "@/lib/launch-pack-service";
+import {
+  getLaunchPackDetail,
+  markLaunchPackDemoVideoFailed,
+  markLaunchPackDemoVideoReady,
+  startLaunchPackDeckRender,
+} from "@/lib/launch-pack-service";
 import { RenderLaunchDeckRequestSchema, RenderLaunchVideoRequestSchema } from "@/lib/schemas";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/server";
 
@@ -105,6 +110,12 @@ export async function POST(request: Request, context: RouteContext) {
           launchPack,
           videoUrl,
         })
+      : result.error
+        ? await markLaunchPackDemoVideoFailed({
+            id,
+            launchPack,
+            error: result.error,
+          })
       : null;
 
     return NextResponse.json({

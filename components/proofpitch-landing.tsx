@@ -887,7 +887,7 @@ function OutputPreview({
       ) : (
         <div className="grid gap-3 border border-stone-300 bg-[#f8fbf8] p-3">
           <p className="text-sm leading-6 text-stone-700">
-            Let the demo agent handle consent, follow your path instructions, then assemble the walkthrough as a Remotion MP4.
+            Let the demo agent handle consent, follow your path instructions, then assemble the walkthrough as a HyperFrames MP4.
           </p>
           <button
             type="button"
@@ -1202,7 +1202,7 @@ export function ProofPitchLanding() {
     }
 
     setIsRenderingVideo(true);
-    setVideoRenderMessage("Capturing the site and rendering with Remotion...");
+    setVideoRenderMessage("Capturing the site and rendering with HyperFrames...");
     setError(null);
     setRenderMessage(null);
 
@@ -1335,7 +1335,7 @@ export function ProofPitchLanding() {
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-stone-600">
               ProofPitch now uses a small demo agent: it handles cookie walls, follows your path
-              instructions, then turns that walkthrough into a Remotion video.
+              instructions, then turns that walkthrough into a HyperFrames video.
             </p>
           </div>
 

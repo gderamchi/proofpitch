@@ -5,10 +5,10 @@ import { providerFailed } from "../lib/providers";
 import {
   CreateLaunchPackRequestSchema,
   GeneratePitchPackRequestSchema,
+  HyperFramesRenderSpecSchema,
   LaunchPackSchema,
   PitchPackSchema,
   PitchDeckSchema,
-  RemotionRenderPropsSchema,
   type LaunchPack,
   type PitchPack,
 } from "../lib/schemas";
@@ -107,8 +107,8 @@ function buildSocialDraftInput(
       url: "https://assets.test/demo-video.mp4",
       durationSeconds: 24,
       uploadStatus: "uploaded",
-      renderer: "remotion",
-      compositionId: "ProofPitchProductDemo",
+      renderer: "hyperframes",
+      compositionId: "proofpitch-product-demo",
     },
     pitchDeck: {
       status: "ready",
@@ -618,10 +618,10 @@ describe("backend contracts", () => {
         status: "pending",
         durationSeconds: 0,
         uploadStatus: "blocked_by_provider_review",
-        renderer: "remotion",
-        compositionId: "ProofPitchProductDemo",
+        renderer: "hyperframes",
+        compositionId: "proofpitch-product-demo",
         error: "Product demo video requires Playwright capture.",
-        renderProps: {
+        renderSpec: {
           productName: "ProofPitch",
           oneLiner: "Turn a product URL into a release-ready proof pack.",
           sourceUrl: "https://example.com",
@@ -678,7 +678,7 @@ describe("backend contracts", () => {
     });
 
     expect(PitchDeckSchema.parse(launchPack.pitchDeck).format).toBe("slidev");
-    expect(RemotionRenderPropsSchema.parse(launchPack.demoVideo.renderProps).demoSteps).toHaveLength(3);
+    expect(HyperFramesRenderSpecSchema.parse(launchPack.demoVideo.renderSpec).demoSteps).toHaveLength(3);
     expect(Object.keys(launchPack).sort()).toEqual([
       "captions",
       "claimReview",
@@ -804,15 +804,15 @@ describe("backend contracts", () => {
     expect(assets.pitchDeck.outline).toMatchObject({ status: "pending", deckMode: "sales" });
     expect(Object.keys(assets).sort()).toEqual(["demoVideo", "pitchDeck", "releaseChecklist"]);
     expect(assets.demoVideo).toMatchObject({
-      renderer: "remotion",
-      compositionId: "ProofPitchProductDemo",
+      renderer: "hyperframes",
+      compositionId: "proofpitch-product-demo",
       status: "pending",
       uploadStatus: "blocked_by_provider_review",
     });
     expect(assets.demoVideo.url).toBeUndefined();
-    expect(assets.demoVideo.error).toContain("Remotion render action");
-    expect(assets.demoVideo.renderProps?.demoSteps.join(" ")).toContain("Paste context");
-    expect(assets.demoVideo.renderProps?.demoPath).toBeUndefined();
+    expect(assets.demoVideo.error).toContain("HyperFrames render action");
+    expect(assets.demoVideo.renderSpec?.demoSteps.join(" ")).toContain("Paste context");
+    expect(assets.demoVideo.renderSpec?.demoPath).toBeUndefined();
   });
 
   it("builds launch social drafts with video asset metadata and safe copy limits", async () => {
@@ -842,8 +842,8 @@ describe("backend contracts", () => {
         status: "pending",
         durationSeconds: 0,
         uploadStatus: "blocked_by_provider_review",
-        renderer: "remotion",
-        compositionId: "ProofPitchProductDemo",
+        renderer: "hyperframes",
+        compositionId: "proofpitch-product-demo",
       },
     });
     const drafts = buildSocialDrafts(input);
@@ -903,13 +903,11 @@ describe("backend contracts", () => {
     });
     expect(dryRun.enabled).toBe(true);
     expect(dryRun.commands.join("\n")).toContain("@slidev/cli");
-    expect(dryRun.commands.join("\n")).toContain(
-      "@remotion/renderer renderMedia remotion/index.tsx",
-    );
+    expect(dryRun.commands.join("\n")).toContain("hyperframes render");
     expect(dryRun.videoUrl).toBe("/api/launch-packs/launch-1/video");
   });
 
-  it("keeps user demo path instructions inside Remotion render props", async () => {
+  it("keeps user demo path instructions inside HyperFrames render spec", async () => {
     const { buildReleaseAssets } = await import("../lib/release-assets");
     const assets = await buildReleaseAssets({
       input: {
@@ -924,9 +922,113 @@ describe("backend contracts", () => {
       screenshots: [],
     });
 
-    expect(assets.demoVideo.renderProps?.demoPath).toBe(
+    expect(assets.demoVideo.renderSpec?.demoPath).toBe(
       "Accept cookies, search pricing, then scroll to the CTA.",
     );
+  });
+
+  it("rejects HyperFrames compositions that reference external render resources", async () => {
+    const { buildReleaseAssets } = await import("../lib/release-assets");
+    const { renderReleaseArtifacts } = await import("../lib/release-renderer");
+    const assets = await buildReleaseAssets({
+      input: {
+        sourceUrl: "https://example.com",
+        productName: "ProofPitch",
+        targetAudience: "Founder-led B2B teams",
+        launchGoal: "Release with a product demo video",
+        deckMode: "sales",
+      },
+      pitchPack: buildPitchPack(),
+      screenshots: [],
+    });
+
+    vi.stubEnv("PROOFPITCH_ENABLE_LOCAL_RENDER", "1");
+    const result = await renderReleaseArtifacts({
+      launchPackId: "launch-external-resource",
+      pitchDeck: assets.pitchDeck,
+      demoVideo: {
+        ...assets.demoVideo,
+        renderSpec: {
+          ...assets.demoVideo.renderSpec!,
+          compositionHtml: [
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            "<title>Unsafe render</title>",
+            "</head>",
+            "<body>",
+            '<main data-composition-id="proofpitch-product-demo">',
+            '<img class="clip" data-start="0" data-duration="2" data-track-index="0" src="http://169.254.169.254/latest/meta-data/" alt="external" />',
+            "</main>",
+            "<script>window.__timelines = window.__timelines || {};</script>",
+            "</body>",
+            "</html>",
+          ].join(""),
+        },
+      },
+      captureSite: false,
+      renderDeck: false,
+      renderVideo: true,
+    });
+
+    expect(result.error).toContain("resource URL is not allowed");
+    expect(result.artifacts[0]).toMatchObject({
+      type: "video",
+      status: "failed",
+    });
+  });
+
+  it("enriches HyperFrames specs from public-site inspection and Tavily when no path is provided", async () => {
+    vi.doMock("../lib/demo-video-capture", () => ({
+      captureWebsiteScreenshots: vi.fn(async () => ({
+        screenshots: [
+          {
+            title: "ProofPitch entry screen",
+            url: "data:image/svg+xml;base64,PHN2Zy8+",
+            alt: "Captured homepage",
+            action: "open",
+          },
+        ],
+        siteSummary: "Title: ProofPitch\nVisible actions: Generate launch pack | Review claims",
+        steps: ["Opened https://example.com.", "Scrolled page: scroll down"],
+      })),
+    }));
+    vi.doMock("../lib/tavily", () => ({
+      researchWithTavily: vi.fn(async () => ({
+        answer: "The strongest public demo is the launch-pack generation and claim-review path.",
+        sources: [
+          {
+            title: "ProofPitch public page",
+            url: "https://example.com",
+            content: "Public copy highlights launch packs and claim review.",
+          },
+        ],
+        report: {
+          state: "used",
+          detail: "Tavily returned 1 source.",
+        },
+      })),
+    }));
+    const { prepareHyperFramesRenderSpec } = await import("../lib/release-renderer");
+    const spec = await prepareHyperFramesRenderSpec(
+      "launch-no-path",
+      "/tmp/proofpitch-test",
+      {
+        productName: "ProofPitch",
+        oneLiner: "Turn a product URL into a launch pack.",
+        sourceUrl: "https://example.com",
+        screenshots: [],
+        demoSteps: ["Open the product URL."],
+        captions: ["Product demo stays separate from the deck."],
+      },
+      true,
+      "https://proofpitch.test",
+    );
+
+    expect(spec.demoSteps.join(" ")).toContain("Scrolled page");
+    expect(spec.researchSummary).toContain("Site inspection");
+    expect(spec.researchSummary).toContain("Tavily answer");
+    expect(spec.researchSummary).toContain("launch-pack generation");
   });
 });
 
@@ -965,8 +1067,8 @@ describe("local backend flow", () => {
     expect(outlined?.pitchDeck.markdown).toContain("# ProofPitch");
     expect(outlined?.pitchDeck.markdown).not.toContain("improves conversion by 40%");
     expect(created.demoVideo).toMatchObject({
-      renderer: "remotion",
-      compositionId: "ProofPitchProductDemo",
+      renderer: "hyperframes",
+      compositionId: "proofpitch-product-demo",
       uploadStatus: "blocked_by_provider_review",
     });
     expect(created.socialDrafts?.x.status).toBe("needs_video");

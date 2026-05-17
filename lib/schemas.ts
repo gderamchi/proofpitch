@@ -211,7 +211,7 @@ export const ProductDemoScreenshotSchema = z.object({
     .optional(),
 });
 
-export const RemotionRenderPropsSchema = z.object({
+export const HyperFramesRenderSpecSchema = z.object({
   productName: z.string(),
   oneLiner: z.string(),
   sourceUrl: z.string().url(),
@@ -220,28 +220,50 @@ export const RemotionRenderPropsSchema = z.object({
   screenshots: z.array(ProductDemoScreenshotSchema),
   demoSteps: z.array(z.string()).min(1),
   captions: z.array(z.string()),
+  compositionHtml: z.string().optional(),
+  designNotes: z.string().optional(),
+  researchSummary: z.string().optional(),
 });
 
-export const DemoVideoSchema = z.object({
-  status: z.enum(["pending", "ready", "failed"]),
-  url: z.string().optional(),
-  durationSeconds: z.number().int().min(0).max(600).optional(),
-  uploadStatus: z.enum([
-    "not_required",
-    "pending",
-    "uploaded",
-    "manual_upload_required",
-    "blocked_by_provider_review",
-  ]),
-  renderer: z.literal("remotion").optional(),
-  compositionId: z.string().optional(),
-  renderProps: RemotionRenderPropsSchema.optional(),
-  error: z.string().optional(),
-});
+export const DemoVideoStatusSchema = z.enum(["pending", "ready", "failed"]);
+
+export const DemoVideoSchema = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    const legacySpecKey = ["render", "Props"].join("");
+    const renderSpec = candidate.renderSpec ?? candidate[legacySpecKey];
+
+    return {
+      ...candidate,
+      renderer: "hyperframes",
+      renderSpec,
+    };
+  },
+  z.object({
+    status: DemoVideoStatusSchema,
+    url: z.string().optional(),
+    durationSeconds: z.number().int().min(0).max(600).optional(),
+    uploadStatus: z.enum([
+      "not_required",
+      "pending",
+      "uploaded",
+      "manual_upload_required",
+      "blocked_by_provider_review",
+    ]),
+    renderer: z.literal("hyperframes").optional(),
+    compositionId: z.string().optional(),
+    renderSpec: HyperFramesRenderSpecSchema.optional(),
+    error: z.string().optional(),
+  }),
+);
 
 export const SocialDraftStatusSchema = z.enum(["ready", "needs_video", "needs_deck", "manual_step"]);
 export const SocialDraftVideoAssetSchema = z.object({
-  status: DemoVideoSchema.shape.status,
+  status: DemoVideoStatusSchema,
   url: z.string().optional(),
   format: z.literal("mp4"),
   usageByPlatform: z.object({
@@ -424,7 +446,7 @@ export type DeckSlideSpec = z.infer<typeof DeckSlideSpecSchema>;
 export type DeckOutline = z.infer<typeof DeckOutlineSchema>;
 export type PitchDeck = z.infer<typeof PitchDeckSchema>;
 export type ProductDemoScreenshot = z.infer<typeof ProductDemoScreenshotSchema>;
-export type RemotionRenderProps = z.infer<typeof RemotionRenderPropsSchema>;
+export type HyperFramesRenderSpec = z.infer<typeof HyperFramesRenderSpecSchema>;
 export type DemoVideo = z.infer<typeof DemoVideoSchema>;
 export type SocialDraftStatus = z.infer<typeof SocialDraftStatusSchema>;
 export type SocialDraftVideoAsset = z.infer<typeof SocialDraftVideoAssetSchema>;

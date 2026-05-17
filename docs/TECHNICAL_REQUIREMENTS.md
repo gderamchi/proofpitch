@@ -69,15 +69,15 @@ When Pioneer is unavailable, the app must record the provider state and continue
 - `pending` or `failed`: capture is unavailable or failed.
 
 The system must never return a Slidev deck render as a product demo video. The deck remains a separate `pitchDeck` artifact.
-When the launch pack is pending, the UI can trigger the Remotion render action. That action runs the demo-path agent, captures the submitted site URL with Playwright screenshots, passes those frames into the Remotion composition, and writes a real MP4.
+When the launch pack is pending, the UI can trigger the HyperFrames render action. That action runs the demo-path agent, captures the submitted site URL with Playwright screenshots, asks GPT-5.5 for a deterministic HyperFrames composition, and writes a real MP4.
 
 The demo-path agent must:
 
 - try common consent buttons before capturing the walkthrough;
-- preserve the user's `demoInstructions` as Remotion `demoPath`;
+- preserve the user's `demoInstructions` as HyperFrames `demoPath`;
 - support simple click, search, first-result, and scroll instructions;
 - keep a step log in `demoSteps` so the video captions describe what the agent did.
-Remotion demo videos should be long enough to inspect the site, with the browser capture as the dominant visual surface and an option in the UI to open the MP4 full-size.
+HyperFrames demo videos should be long enough to inspect the site, with the browser capture as the dominant visual surface and an option in the UI to open the MP4 full-size.
 
 ## Free Access And Rendering
 
@@ -91,8 +91,8 @@ Local rendering is opt-in:
 PROOFPITCH_ENABLE_LOCAL_RENDER=1
 ```
 
-When enabled, the renderer can export the Slidev deck and render a Remotion MP4 from `demoVideo.renderProps`. The Vercel server runtime is also treated as an enabled render worker for the production route.
-Production Remotion renders launch a serverless Chromium pack through `@sparticuz/chromium-min`; set `PROOFPITCH_CHROMIUM_PACK_URL` only if the default hosted pack must be replaced.
+When enabled, the renderer can export the Slidev deck and render a HyperFrames MP4 from `demoVideo.renderSpec`. The Vercel server runtime is also treated as an enabled render worker for the production route.
+Production HyperFrames renders require Node 22, Chrome, and FFmpeg in the render worker. If those are unavailable, the render route must return an explicit failed or pending state rather than a fake video URL.
 The interactive UI render action may request a local video render for the selected launch pack. The render route should prefer a server-side launch-pack lookup and may accept a full `launchPack` fallback when local serverless storage cannot find the id. Request bodies must not be able to force-enable local rendering; that remains controlled only by server environment.
 
 When local rendering is disabled, `/api/launch-packs/:id/render` must return `200`, keep `pitchDeck.renderState: "queued"`, and report `render.enabled: false`. It must not return a sign-in requirement.
@@ -111,7 +111,7 @@ When local rendering is disabled, `/api/launch-packs/:id/render` must return `20
 
 Gradium can be used for the demo-video narration path once the render worker has `GRADIUM_API_KEY` and `GRADIUM_VOICE_ID`. The intended path is:
 
-1. Build a concise narration script from `demoScript` and `demoVideo.renderProps.demoSteps`.
+1. Build a concise narration script from `demoScript` and `demoVideo.renderSpec.demoSteps`.
 2. Call Gradium's REST TTS endpoint with `x-api-key`, `voice_id`, `output_format: "wav"`, and `only_audio: true`.
 3. Store the generated WAV alongside local render assets.
 4. Overlay that audio on the product-demo video render.

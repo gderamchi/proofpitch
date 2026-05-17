@@ -4,10 +4,10 @@ import {
   type CreateLaunchPackRequest,
   type DeckOutline,
   type DemoVideo,
+  type HyperFramesRenderSpec,
   type LaunchScreenshot,
   type PitchDeck,
   type PitchPack,
-  type RemotionRenderProps,
 } from "./schemas";
 import {
   buildDeckSpec,
@@ -23,7 +23,7 @@ export type ReleaseAssets = {
   releaseChecklist: string[];
 };
 
-const REMOTION_COMPOSITION_ID = "ProofPitchProductDemo";
+const HYPERFRAMES_COMPOSITION_ID = "proofpitch-product-demo";
 
 export function buildSlidevMarkdown(
   input: ReleaseInput,
@@ -87,7 +87,7 @@ export function buildPendingPitchDeck(input: ReleaseInput, outline?: DeckOutline
   });
 }
 
-function createRenderProps({
+function createRenderSpec({
   input,
   pitchPack,
   screenshots,
@@ -95,7 +95,7 @@ function createRenderProps({
   input: ReleaseInput;
   pitchPack: PitchPack;
   screenshots: LaunchScreenshot[];
-}): RemotionRenderProps {
+}): HyperFramesRenderSpec {
   return {
     productName: input.productName,
     oneLiner: pitchPack.oneLiner,
@@ -118,6 +118,9 @@ function createRenderProps({
       "Product demo and pitch deck are separate assets.",
       "Unsupported claims stay visible before publishing.",
     ],
+    designNotes:
+      "Use ProofPitch's pale green workspace canvas, square bordered panels, dense founder-tool UI, and restrained teal emphasis.",
+    researchSummary: "Initial launch-pack context only. The render worker can enrich this before writing the composition.",
   };
 }
 
@@ -132,7 +135,7 @@ function buildDemoVideo({
   screenshots: LaunchScreenshot[];
   captureVideoUrl?: string;
 }) {
-  const renderProps = createRenderProps({ input, pitchPack, screenshots });
+  const renderSpec = createRenderSpec({ input, pitchPack, screenshots });
 
   if (captureVideoUrl) {
     return DemoVideoSchema.parse({
@@ -140,9 +143,9 @@ function buildDemoVideo({
       url: captureVideoUrl,
       uploadStatus: "uploaded",
       durationSeconds: 60,
-      renderer: "remotion",
-      compositionId: REMOTION_COMPOSITION_ID,
-      renderProps,
+      renderer: "hyperframes",
+      compositionId: HYPERFRAMES_COMPOSITION_ID,
+      renderSpec,
     });
   }
 
@@ -150,11 +153,11 @@ function buildDemoVideo({
     status: "pending",
     uploadStatus: "blocked_by_provider_review",
     durationSeconds: 0,
-    renderer: "remotion",
-    compositionId: REMOTION_COMPOSITION_ID,
-    renderProps,
+    renderer: "hyperframes",
+    compositionId: HYPERFRAMES_COMPOSITION_ID,
+    renderSpec,
     error:
-      "Demo video is ready to render. Use the Remotion render action to capture the site and assemble the MP4.",
+      "Demo video is ready to render. Use the HyperFrames render action to capture the site and assemble the MP4.",
   });
 }
 

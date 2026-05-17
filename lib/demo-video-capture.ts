@@ -13,6 +13,7 @@ type CaptureWebsiteScreenshotsInput = {
 type CaptureWebsiteScreenshotsResult = {
   recordingPath?: string;
   screenshots: ProductDemoScreenshot[];
+  siteSummary?: string;
   steps: string[];
 };
 
@@ -255,6 +256,39 @@ async function screenshotToDataUrl(filePath: string) {
 async function waitForPage(page: PlaywrightPage) {
   await page.waitForLoadState("domcontentloaded", { timeout: 8_000 }).catch(() => undefined);
   await page.waitForLoadState("networkidle", { timeout: 4_000 }).catch(() => undefined);
+}
+
+async function inspectVisibleSite(page: PlaywrightPage) {
+  return page
+    .evaluate(() => {
+      const clean = (value: string) => value.replace(/\s+/g, " ").trim();
+      const visibleText = (selector: string, limit: number) =>
+        Array.from(document.querySelectorAll<HTMLElement>(selector))
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+
+            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+          })
+          .map((element) => clean(element.innerText || element.textContent || element.getAttribute("aria-label") || ""))
+          .filter(Boolean)
+          .slice(0, limit);
+
+      const title = clean(document.title || "");
+      const headings = visibleText("h1, h2, h3", 8);
+      const actions = visibleText("button, a, [role='button'], [role='link']", 12);
+      const forms = visibleText("input[placeholder], textarea[placeholder]", 6);
+
+      return [
+        title ? `Title: ${title}` : "",
+        headings.length ? `Headings: ${headings.join(" | ")}` : "",
+        actions.length ? `Visible actions: ${actions.join(" | ")}` : "",
+        forms.length ? `Form prompts: ${forms.join(" | ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .catch(() => undefined);
 }
 
 async function installCursorOverlay(page: PlaywrightPage) {
@@ -758,6 +792,7 @@ export async function captureWebsiteScreenshots({
     await waitForPage(page);
     await installCursorOverlay(page);
     await wait(1_200);
+    const siteSummary = await inspectVisibleSite(page);
 
     steps.push(`Opened ${sourceUrl}.`);
     const consentStep = await acceptCookieBanners(page);
@@ -860,6 +895,7 @@ export async function captureWebsiteScreenshots({
     return {
       recordingPath: video ? await video.path().catch(() => undefined) : undefined,
       screenshots: screenshots.slice(0, 8),
+      siteSummary,
       steps: steps.slice(0, 10),
     };
   } finally {

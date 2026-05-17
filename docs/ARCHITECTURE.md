@@ -26,7 +26,7 @@ The App Router API uses route handlers. Next.js 16 route handlers are defined th
 6. Missing or failed providers produce explicit provider states and deterministic fallback content.
 7. The launch pack starts with pending claim review and pending deck state.
 8. `POST /api/launch-packs/:id/outline` accepts selected claim ids and uses `lib/deck-spec.ts` to compile a deterministic `DeckOutline` and Slidev markdown.
-9. `POST /api/launch-packs/:id/render` optionally runs Slidev/Remotion rendering and product-site capture.
+9. `POST /api/launch-packs/:id/render` optionally runs Slidev/HyperFrames rendering and product-site capture.
 10. The render flow refreshes `socialDrafts` when deck or video asset state changes.
 11. Rendered local artifacts are served by `/api/launch-packs/:id/video` and `/api/launch-packs/:id/recording`.
 
@@ -38,7 +38,7 @@ The key contracts live in `lib/schemas.ts`.
 - `LaunchPack`: request metadata, provider statuses, claim review, `PitchPack`, `PitchDeck`, `DemoVideo`, screenshots, captions, and checklist.
 - `DeckOutline`: approved claim ids plus structured slide specs.
 - `PitchDeck`: deterministic Slidev markdown and render/export state.
-- `DemoVideo`: Remotion render metadata, product screenshots, captions, and upload/render status.
+- `DemoVideo`: HyperFrames render metadata, product screenshots, captions, and upload/render status.
 - `SocialDrafts`: X, LinkedIn, and Product Hunt launch drafts with explicit video and deck asset notes.
 - `ProviderReport`: provider state and sanitized detail for OpenAI, Tavily, and Pioneer.
 
@@ -56,7 +56,7 @@ The key contracts live in `lib/schemas.ts`.
 | Tavily | Optional web research and source snippets for claim support. |
 | Pioneer | Optional entity extraction and claim-risk signal. |
 | Playwright Chromium | Optional product-site screenshot and recording capture. |
-| Remotion | Product demo video composition and MP4 render path. |
+| HyperFrames | HTML product demo video composition and MP4 render path. |
 | Slidev | Deterministic pitch-deck markdown and PDF export path. |
 | Stripe | Parked billing/webhook support for future monetization; checkout is disabled in free-access mode. |
 | Vitest | Backend and service-level test runner. |
@@ -96,7 +96,7 @@ Pioneer is the extraction layer. It extracts entities and claim risk from founde
 Deck rendering and product demo rendering are separate by design.
 
 - Slidev renders the approved deck from deterministic markdown.
-- Remotion renders product-demo video content from product screenshots, captions, and demo steps.
+- HyperFrames renders product-demo video content from product screenshots, browser recordings, captions, and demo steps.
 - Playwright capture can produce screenshots and browser recordings from the submitted product URL.
 - The app must not treat a Slidev deck render as the product demo video.
 - Local rendering is opt-in through `PROOFPITCH_ENABLE_LOCAL_RENDER=1`.

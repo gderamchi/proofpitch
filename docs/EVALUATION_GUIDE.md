@@ -56,7 +56,7 @@ PROOFPITCH_ENABLE_LOCAL_RENDER=1
 8. Trigger render if local rendering is enabled.
 9. Inspect the MP4 demo-video state or rendered artifact.
 
-The critical evaluation point is separation of concerns: the deck is a Slidev pitch artifact, while the demo video is a Remotion product-walkthrough artifact.
+The critical evaluation point is separation of concerns: the deck is a Slidev pitch artifact, while the demo video is a HyperFrames product-walkthrough artifact.
 
 ## API Smoke Test
 

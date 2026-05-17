@@ -4,10 +4,14 @@ import os from "node:os";
 import path from "node:path";
 
 import { captureWebsiteScreenshots } from "./demo-video-capture";
-import type { DemoVideo, PitchDeck, ProductDemoScreenshot, RemotionRenderProps } from "./schemas";
-
-const DEFAULT_CHROMIUM_PACK_URL =
-  "https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar";
+import { fetchWithRetry } from "./retry";
+import { researchWithTavily } from "./tavily";
+import {
+  type DemoVideo,
+  type HyperFramesRenderSpec,
+  type PitchDeck,
+  type ProductDemoScreenshot,
+} from "./schemas";
 
 type RenderReleaseArtifactsInput = {
   launchPackId: string;
@@ -38,10 +42,72 @@ type RenderReleaseArtifactsResult = {
   videoUrl?: string;
 };
 
+type ResponsesApiOutput = {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+type HyperFramesGeneration = {
+  compositionHtml: string;
+  demoSteps: string[];
+  captions: string[];
+  designNotes: string;
+  researchSummary: string;
+  durationSeconds: number;
+};
+
+const hyperFramesGenerationJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["compositionHtml", "demoSteps", "captions", "designNotes", "researchSummary", "durationSeconds"],
+  properties: {
+    compositionHtml: { type: "string" },
+    demoSteps: { type: "array", minItems: 1, maxItems: 9, items: { type: "string" } },
+    captions: { type: "array", minItems: 1, maxItems: 6, items: { type: "string" } },
+    designNotes: { type: "string" },
+    researchSummary: { type: "string" },
+    durationSeconds: { type: "integer", minimum: 18, maximum: 90 },
+  },
+};
+
+const LAUNCH_PACK_STORAGE_ID_PATTERN = /^[a-zA-Z0-9-]+$/;
+const ALLOWED_GSAP_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js";
+const HYPERFRAMES_CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'unsafe-inline'",
+  "img-src 'self' data:",
+  "media-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'none'",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "worker-src 'none'",
+].join("; ");
+
+function safeLaunchPackStorageId(launchPackId: string) {
+  if (!LAUNCH_PACK_STORAGE_ID_PATTERN.test(launchPackId)) {
+    throw new Error("Invalid launch pack id for release asset storage.");
+  }
+
+  return launchPackId;
+}
+
 export function outputDirForLaunchPack(launchPackId: string) {
   const outputRoot = process.env.PROOFPITCH_OUTPUT_DIR ?? (process.env.VERCEL ? os.tmpdir() : process.cwd());
 
-  return path.join(outputRoot, ".proofpitch", "release-assets", launchPackId);
+  return path.join(outputRoot, ".proofpitch", "release-assets", safeLaunchPackStorageId(launchPackId));
 }
 
 export function renderedDemoVideoPath(launchPackId: string) {
@@ -72,37 +138,8 @@ function renderWorkerEnabled() {
   return process.env.PROOFPITCH_ENABLE_LOCAL_RENDER === "1" || process.env.VERCEL === "1";
 }
 
-type RemotionBrowserLaunchOptions = {
-  browserExecutable?: string;
-  chromeMode?: "headless-shell";
-  chromiumOptions?: {
-    enableMultiProcessOnLinux?: boolean;
-    gl?: "swangle";
-  };
-};
-
-let cachedBrowserExecutable: string | undefined;
-
-async function remotionBrowserLaunchOptions(): Promise<RemotionBrowserLaunchOptions> {
-  if (!process.env.VERCEL && !process.env.PROOFPITCH_CHROMIUM_PACK_URL) {
-    return {};
-  }
-
-  if (!cachedBrowserExecutable) {
-    const { default: chromium } = await import("@sparticuz/chromium-min");
-    const chromiumPackUrl = process.env.PROOFPITCH_CHROMIUM_PACK_URL || DEFAULT_CHROMIUM_PACK_URL;
-
-    cachedBrowserExecutable = await chromium.executablePath(chromiumPackUrl);
-  }
-
-  return {
-    browserExecutable: cachedBrowserExecutable,
-    chromeMode: "headless-shell",
-    chromiumOptions: {
-      enableMultiProcessOnLinux: false,
-      gl: "swangle",
-    },
-  };
+function hyperframesCommand() {
+  return path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "hyperframes.cmd" : "hyperframes");
 }
 
 function escapeXml(value: string) {
@@ -116,12 +153,12 @@ function escapeXml(value: string) {
 function placeholderScreenshotDataUrl(title: string, reason: string) {
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000">`,
-    `<rect width="1440" height="1000" fill="#f4efe6"/>`,
-    `<rect x="48" y="48" width="1344" height="904" fill="#fffaf0" stroke="#111827" stroke-width="3"/>`,
+    `<rect width="1440" height="1000" fill="#edf4f1"/>`,
+    `<rect x="48" y="48" width="1344" height="904" fill="#fffdf7" stroke="#111827" stroke-width="3"/>`,
     `<rect x="96" y="292" width="560" height="52" fill="#111827"/>`,
     `<rect x="96" y="376" width="780" height="34" fill="#334155"/>`,
     `<rect x="96" y="440" width="680" height="34" fill="#64748b"/>`,
-    `<rect x="96" y="540" width="1120" height="260" fill="#e2e8f0" stroke="#111827" stroke-width="2"/>`,
+    `<rect x="96" y="540" width="1120" height="260" fill="#e0f2f1" stroke="#111827" stroke-width="2"/>`,
     `<text x="96" y="170" font-family="Georgia,serif" font-size="62" font-weight="700" fill="#111827">${escapeXml(title).slice(0, 80)}</text>`,
     `<text x="96" y="238" font-family="Arial,sans-serif" font-size="26" fill="#475569">${escapeXml(reason).slice(0, 130)}</text>`,
     `</svg>`,
@@ -130,85 +167,154 @@ function placeholderScreenshotDataUrl(title: string, reason: string) {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
-function fallbackScreenshots(renderProps: RemotionRenderProps, reason: string): ProductDemoScreenshot[] {
-  const screenshots = renderProps.screenshots.length
-    ? renderProps.screenshots
+function fallbackScreenshots(renderSpec: HyperFramesRenderSpec, reason: string): ProductDemoScreenshot[] {
+  const screenshots = renderSpec.screenshots.length
+    ? renderSpec.screenshots
     : [
         {
           action: "open" as const,
-          title: `${renderProps.productName} product entry`,
-          url: renderProps.sourceUrl,
-          alt: `${renderProps.productName} product entry`,
+          title: `${renderSpec.productName} product entry`,
+          url: renderSpec.sourceUrl,
+          alt: `${renderSpec.productName} product entry`,
         },
       ];
 
   return screenshots.slice(0, 4).map((screenshot, index) => ({
     ...screenshot,
     action: screenshot.action ?? (index === 0 ? "open" : "scroll"),
-    alt: screenshot.alt || `${renderProps.productName} demo step ${index + 1}`,
+    alt: screenshot.alt || `${renderSpec.productName} demo step ${index + 1}`,
     target: screenshot.target ?? screenshot.title,
     url: placeholderScreenshotDataUrl(screenshot.title, reason),
   }));
 }
 
-async function renderDemoVideoWithRemotion({
-  compositionId,
-  outputDir,
-  renderProps,
-  videoPath,
-}: {
-  compositionId: string;
-  outputDir: string;
-  renderProps: RemotionRenderProps;
-  videoPath: string;
-}) {
-  const [{ bundle }, { renderMedia, selectComposition }] = await Promise.all([
-    import("@remotion/bundler"),
-    import("@remotion/renderer"),
-  ]);
-  const inputProps = renderProps as unknown as Record<string, unknown>;
-  const serveUrl = await bundle({
-    entryPoint: path.join(process.cwd(), "remotion", "index.tsx"),
-    outDir: path.join(outputDir, "remotion-bundle"),
-    enableCaching: false,
-    publicDir: path.join(process.cwd(), "public"),
-    rspack: false,
-  });
-  const previousCwd = process.cwd();
+function extractOutputText(data: ResponsesApiOutput): string | undefined {
+  if (data.output_text) {
+    return data.output_text;
+  }
 
-  try {
-    const browserLaunchOptions = await remotionBrowserLaunchOptions();
-
-    if (process.env.VERCEL) {
-      process.chdir(os.tmpdir());
+  for (const item of data.output ?? []) {
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text" && content.text) {
+        return content.text;
+      }
     }
+  }
 
-    const composition = await selectComposition({
-      ...browserLaunchOptions,
-      id: compositionId,
-      inputProps,
-      serveUrl,
-      timeoutInMilliseconds: 120000,
-    });
+  return undefined;
+}
 
-    await renderMedia({
-      codec: "h264",
-      composition,
-      concurrency: 1,
-      inputProps,
-      logLevel: "warn",
-      outputLocation: videoPath,
-      overwrite: true,
-      serveUrl,
-      timeoutInMilliseconds: 120000,
-      ...browserLaunchOptions,
-    });
-  } finally {
-    process.chdir(previousCwd);
+function allowedAssetPath(value: string) {
+  return (/^(?:\.\/)?assets\/[a-zA-Z0-9._/-]+$/.test(value) && !value.includes("..")) || value.startsWith("#");
+}
+
+function allowedDataUrl(value: string) {
+  return value.toLowerCase().startsWith("data:image/");
+}
+
+function allowedHyperFramesResourceUrl(attributeName: string, value: string) {
+  const trimmed = value.trim();
+  const lowerAttributeName = attributeName.toLowerCase();
+
+  if (!trimmed) {
+    return true;
+  }
+
+  if (lowerAttributeName === "src" && trimmed === ALLOWED_GSAP_SCRIPT_URL) {
+    return true;
+  }
+
+  return allowedDataUrl(trimmed) || allowedAssetPath(trimmed);
+}
+
+function assertSafeHyperFramesResources(html: string) {
+  const forbiddenMarkup = [
+    [/<(?:iframe|object|embed|base)\b/i, "iframes, objects, embeds, and base tags are not allowed."],
+    [/<form\b/i, "Forms are not allowed inside render compositions."],
+  ] as const;
+  const forbiddenScript = [
+    [/navigator\.sendBeacon\s*\(/, "Network beacons are not allowed inside the render composition."],
+    [/\bXMLHttpRequest\b/, "XMLHttpRequest is not allowed inside the render composition."],
+    [/\bWebSocket\b/, "WebSocket is not allowed inside the render composition."],
+    [/\bEventSource\b/, "EventSource is not allowed inside the render composition."],
+    [/\bimport\s*\(/, "Dynamic imports are not allowed inside the render composition."],
+    [/\bwindow\.open\s*\(/, "Window navigation is not allowed inside the render composition."],
+    [/\blocation\.(?:assign|replace|href)\b/, "Location navigation is not allowed inside the render composition."],
+  ] as const;
+
+  for (const [pattern, message] of [...forbiddenMarkup, ...forbiddenScript]) {
+    if (pattern.test(html)) {
+      throw new Error(`Generated HyperFrames HTML rejected: ${message}`);
+    }
+  }
+
+  const attributePattern = /\b(src|href|poster|data|xlink:href)\s*=\s*(["'])(.*?)\2/gi;
+  let attributeMatch: RegExpExecArray | null;
+
+  while ((attributeMatch = attributePattern.exec(html))) {
+    const [, attributeName, , rawValue] = attributeMatch;
+
+    if (!allowedHyperFramesResourceUrl(attributeName, rawValue)) {
+      throw new Error(`Generated HyperFrames HTML rejected: resource URL is not allowed: ${rawValue.slice(0, 120)}`);
+    }
+  }
+
+  const cssUrlPattern = /url\(\s*(["']?)(.*?)\1\s*\)/gi;
+  let cssMatch: RegExpExecArray | null;
+
+  while ((cssMatch = cssUrlPattern.exec(html))) {
+    const rawValue = cssMatch[2];
+
+    if (!allowedDataUrl(rawValue.trim()) && !allowedAssetPath(rawValue.trim())) {
+      throw new Error(`Generated HyperFrames HTML rejected: CSS resource URL is not allowed: ${rawValue.slice(0, 120)}`);
+    }
   }
 }
 
-async function runCommand(command: string, args: string[]) {
+function withHyperFramesSecurityPolicy(html: string) {
+  assertSafeHyperFramesResources(html);
+
+  if (/http-equiv\s*=\s*(["'])Content-Security-Policy\1/i.test(html)) {
+    return html;
+  }
+
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${HYPERFRAMES_CONTENT_SECURITY_POLICY}">`;
+
+  if (!/<head\b[^>]*>/i.test(html)) {
+    throw new Error("Generated HyperFrames HTML rejected: missing head element for render security policy.");
+  }
+
+  return html.replace(/<head\b([^>]*)>/i, `<head$1>\n    ${meta}`);
+}
+
+function assertSafeHyperFramesHtml(html: string) {
+  const violations = [
+    [/Math\.random\s*\(/, "Math.random is not deterministic."],
+    [/Date\.now\s*\(/, "Date.now is not deterministic."],
+    [/\bfetch\s*\(/, "Network fetches are not allowed inside the render composition."],
+    [/setTimeout\s*\(/, "Asynchronous timeline construction is not allowed."],
+    [/setInterval\s*\(/, "Asynchronous timeline construction is not allowed."],
+    [/repeat\s*:\s*-1/, "Infinite repeats are not allowed."],
+  ] as const;
+
+  for (const [pattern, message] of violations) {
+    if (pattern.test(html)) {
+      throw new Error(`Generated HyperFrames HTML rejected: ${message}`);
+    }
+  }
+
+  if (!html.includes("data-composition-id")) {
+    throw new Error("Generated HyperFrames HTML is missing data-composition-id.");
+  }
+
+  if (!html.includes("window.__timelines")) {
+    throw new Error("Generated HyperFrames HTML is missing timeline registration.");
+  }
+
+  assertSafeHyperFramesResources(html);
+}
+
+async function runCommand(command: string, args: string[], cwd = process.cwd()) {
   const writableNpmEnv = process.env.VERCEL
     ? {
         HOME: os.tmpdir(),
@@ -221,6 +327,7 @@ async function runCommand(command: string, args: string[]) {
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
+      cwd,
       stdio: "pipe",
       shell: false,
       env: {
@@ -245,15 +352,15 @@ async function runCommand(command: string, args: string[]) {
   });
 }
 
-async function withCapturedScreenshots(
+export async function prepareHyperFramesRenderSpec(
   launchPackId: string,
   outputDir: string,
-  renderProps: RemotionRenderProps,
+  renderSpec: HyperFramesRenderSpec,
   captureSite: boolean,
   baseUrl?: string,
 ) {
   if (!captureSite) {
-    return renderProps;
+    return renderSpec;
   }
 
   let capture: Awaited<ReturnType<typeof captureWebsiteScreenshots>>;
@@ -261,17 +368,18 @@ async function withCapturedScreenshots(
   try {
     capture = await captureWebsiteScreenshots({
       outputDir: path.join(outputDir, "captures"),
-      pathInstructions: renderProps.demoPath,
-      productName: renderProps.productName,
-      sourceUrl: renderProps.sourceUrl,
+      pathInstructions: renderSpec.demoPath,
+      productName: renderSpec.productName,
+      sourceUrl: renderSpec.sourceUrl,
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Browser capture unavailable.";
 
     return {
-      ...renderProps,
-      screenshots: fallbackScreenshots(renderProps, reason),
-      captions: [...renderProps.captions, `Browser capture fallback: ${reason}`].slice(0, 5),
+      ...renderSpec,
+      screenshots: fallbackScreenshots(renderSpec, reason),
+      captions: [...renderSpec.captions, `Browser capture fallback: ${reason}`].slice(0, 5),
+      researchSummary: [renderSpec.researchSummary, `Browser capture fallback: ${reason}`].filter(Boolean).join("\n"),
     };
   }
 
@@ -281,16 +389,233 @@ async function withCapturedScreenshots(
     await copyFile(capture.recordingPath, recordingPath);
   }
 
+  let researchSummary = renderSpec.researchSummary ?? "";
+
+  if (!renderSpec.demoPath?.trim()) {
+    const tavily = await researchWithTavily(
+      `${renderSpec.productName}: ${renderSpec.oneLiner}. Identify the best public product demo workflow.`,
+      renderSpec.sourceUrl,
+    );
+    const sourceLines = tavily.sources
+      .slice(0, 3)
+      .map((source) => `- ${source.title}: ${source.content} (${source.url})`)
+      .join("\n");
+
+    researchSummary = [
+      researchSummary,
+      capture.siteSummary ? `Site inspection:\n${capture.siteSummary}` : "",
+      tavily.answer ? `Tavily answer:\n${tavily.answer}` : "",
+      sourceLines ? `Tavily sources:\n${sourceLines}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   return {
-    ...renderProps,
+    ...renderSpec,
     browserRecordingUrl: recordingPath ? absoluteUrl(baseUrl, renderedBrowserRecordingUrl(launchPackId)) : undefined,
     screenshots: capture.screenshots,
-    demoSteps: capture.steps.length ? capture.steps : renderProps.demoSteps,
+    demoSteps: capture.steps.length ? capture.steps : renderSpec.demoSteps,
     captions: [
-      ...renderProps.captions,
+      ...renderSpec.captions,
       `Captured ${capture.screenshots.length} screen${capture.screenshots.length === 1 ? "" : "s"} for ${launchPackId}.`,
     ].slice(0, 5),
+    researchSummary,
   };
+}
+
+async function generateHyperFramesWithOpenAI(renderSpec: HyperFramesRenderSpec): Promise<HyperFramesGeneration> {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is required to generate the HyperFrames video composition.");
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const recordingAsset = renderSpec.browserRecordingUrl ? "assets/browser-recording.webm" : null;
+  const response = await fetchWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        instructions: [
+          "You generate production HyperFrames HTML for ProofPitch product demo videos.",
+          "Return JSON only through the provided structured output schema.",
+          "The HTML must be a standalone HyperFrames index.html file, not JSX and not markdown.",
+          "Use deterministic HTML/CSS/GSAP only: no Math.random, Date.now, fetch, setTimeout, setInterval, async timeline construction, or repeat:-1.",
+          `If GSAP is loaded externally, the only allowed external script is ${ALLOWED_GSAP_SCRIPT_URL}; no other network, file, blob, iframe, form, or CSS url() resources are allowed.`,
+          "Register a paused GSAP timeline on window.__timelines using composition id proofpitch-product-demo.",
+          "Every visible timed element must include class clip, data-start, data-duration, and data-track-index.",
+          "Use the ProofPitch visual identity: pale green canvas, square bordered founder-tool panels, dense UI, restrained teal emphasis.",
+          recordingAsset
+            ? `The dominant visual surface must be the browser recording at ${recordingAsset}.`
+            : "No browser recording is available; use the provided screenshot data URLs and an explicit capture-blocked frame.",
+        ].join("\n"),
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  "Build a HyperFrames product walkthrough composition from this render spec.",
+                  "",
+                  JSON.stringify(
+                    {
+                      ...renderSpec,
+                      browserRecordingUrl: recordingAsset,
+                      screenshots: renderSpec.screenshots.slice(0, 6),
+                    },
+                    null,
+                    2,
+                  ),
+                  "",
+                  "Requirements:",
+                  "- Respect demoPath if present.",
+                  "- If demoPath is absent, use researchSummary and visible site context to choose the most compelling demo path.",
+                  "- Keep the product demo separate from the pitch deck.",
+                  "- The final composition should be inspectable, not a generic promo.",
+                ].join("\n"),
+              },
+            ],
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "hyperframes_generation",
+            strict: true,
+            schema: hyperFramesGenerationJsonSchema,
+          },
+        },
+        reasoning: {
+          effort: "low",
+        },
+        max_output_tokens: 8000,
+        store: false,
+      }),
+    },
+    { timeoutMs: 90_000 },
+  );
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`OpenAI composition generation failed with HTTP ${response.status}: ${text.slice(0, 500)}`);
+  }
+
+  const data = JSON.parse(text) as ResponsesApiOutput;
+
+  if (data.error?.message) {
+    throw new Error(data.error.message);
+  }
+
+  const outputText = extractOutputText(data);
+
+  if (!outputText) {
+    throw new Error("OpenAI returned no HyperFrames composition.");
+  }
+
+  const generated = JSON.parse(outputText) as HyperFramesGeneration;
+  const secureHtml = withHyperFramesSecurityPolicy(generated.compositionHtml);
+
+  assertSafeHyperFramesHtml(secureHtml);
+
+  return {
+    ...generated,
+    compositionHtml: secureHtml,
+  };
+}
+
+async function writeHyperFramesProject({
+  generated,
+  projectDir,
+  renderSpec,
+}: {
+  generated: HyperFramesGeneration;
+  projectDir: string;
+  renderSpec: HyperFramesRenderSpec;
+}) {
+  const assetsDir = path.join(projectDir, "assets");
+
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(
+    path.join(projectDir, "hyperframes.json"),
+    JSON.stringify(
+      {
+        $schema: "https://hyperframes.heygen.com/schema/hyperframes.json",
+        registry: "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+        paths: {
+          blocks: "compositions",
+          components: "compositions/components",
+          assets: "assets",
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  await writeFile(
+    path.join(projectDir, "DESIGN.md"),
+    [
+      "# ProofPitch HyperFrames Visual Identity",
+      "",
+      renderSpec.designNotes ?? generated.designNotes,
+      "",
+      "Use the real browser recording as the source of truth. Keep panels square, typography compact, and motion precise.",
+    ].join("\n"),
+    "utf8",
+  );
+  await writeFile(path.join(projectDir, "index.html"), generated.compositionHtml, "utf8");
+}
+
+async function renderDemoVideoWithHyperFrames({
+  outputDir,
+  renderSpec,
+  videoPath,
+}: {
+  outputDir: string;
+  renderSpec: HyperFramesRenderSpec;
+  videoPath: string;
+}) {
+  const generated = renderSpec.compositionHtml
+    ? {
+        compositionHtml: withHyperFramesSecurityPolicy(renderSpec.compositionHtml),
+        demoSteps: renderSpec.demoSteps,
+        captions: renderSpec.captions,
+        designNotes: renderSpec.designNotes ?? "ProofPitch HyperFrames composition.",
+        researchSummary: renderSpec.researchSummary ?? "",
+        durationSeconds: 24,
+      }
+    : await generateHyperFramesWithOpenAI(renderSpec);
+  const projectDir = path.join(outputDir, "hyperframes");
+
+  assertSafeHyperFramesHtml(generated.compositionHtml);
+
+  await writeHyperFramesProject({
+    generated,
+    projectDir,
+    renderSpec,
+  });
+
+  const recordingPath = path.join(outputDir, "browser-recording.webm");
+
+  if (renderSpec.browserRecordingUrl && recordingPath) {
+    await mkdir(path.join(projectDir, "assets"), { recursive: true });
+    await copyFile(recordingPath, path.join(projectDir, "assets", "browser-recording.webm")).catch(() => undefined);
+  }
+
+  const hyperframes = hyperframesCommand();
+
+  await runCommand(hyperframes, ["lint"], projectDir);
+  await runCommand(hyperframes, ["validate"], projectDir);
+  await runCommand(hyperframes, ["inspect"], projectDir);
+  await runCommand(hyperframes, ["render", "--output", videoPath, "--quality", "standard", "--workers", "1"], projectDir);
 }
 
 export async function renderReleaseArtifacts({
@@ -316,27 +641,24 @@ export async function renderReleaseArtifacts({
   const deckPath = path.join(outputDir, "pitch-deck.md");
   const deckPdfPath = path.join(outputDir, "pitch-deck.pdf");
   const deckPngPath = path.join(outputDir, "pitch-deck.png");
-  const propsPath = path.join(outputDir, "remotion-props.json");
+  const specPath = path.join(outputDir, "hyperframes-spec.json");
   const videoPath = renderedDemoVideoPath(launchPackId);
+  const projectDir = path.join(outputDir, "hyperframes");
   const shouldRenderDeck = renderDeck;
-  const shouldRenderVideo = renderVideo && Boolean(demoVideo.renderProps) && !demoVideo.url;
-  const compositionId = demoVideo.compositionId || "ProofPitchProductDemo";
+  const shouldRenderVideo = renderVideo && Boolean(demoVideo.renderSpec) && !demoVideo.url;
   const slidevPdfArgs = ["--yes", "@slidev/cli", "export", deckPath, "--format", "pdf", "--output", deckPdfPath];
   const slidevPngArgs = ["--yes", "@slidev/cli", "export", deckPath, "--format", "png", "--output", deckPngPath];
-  const remotionArgs = [
-    "renderMedia",
-    "remotion/index.tsx",
-    compositionId,
-    videoPath,
-    "--props",
-    propsPath,
-    "--codec",
-    "h264",
-    "--overwrite",
-  ];
+  const hyperframes = hyperframesCommand();
   const commands = [
     ...(shouldRenderDeck ? [commandLine("npx", slidevPdfArgs), commandLine("npx", slidevPngArgs)] : []),
-    ...(shouldRenderVideo ? [commandLine("@remotion/renderer", remotionArgs)] : []),
+    ...(shouldRenderVideo
+      ? [
+          commandLine(hyperframes, ["lint"]),
+          commandLine(hyperframes, ["validate"]),
+          commandLine(hyperframes, ["inspect"]),
+          commandLine(hyperframes, ["render", "--output", videoPath, "--quality", "standard", "--workers", "1"]),
+        ]
+      : []),
   ];
   const artifacts: RenderArtifact[] = [
     ...(shouldRenderDeck
@@ -385,19 +707,19 @@ export async function renderReleaseArtifacts({
     }
 
     if (shouldRenderVideo) {
-      const renderProps = await withCapturedScreenshots(
+      const renderSpec = await prepareHyperFramesRenderSpec(
         launchPackId,
         outputDir,
-        demoVideo.renderProps as RemotionRenderProps,
+        demoVideo.renderSpec as HyperFramesRenderSpec,
         captureSite,
         baseUrl,
       );
 
-      await writeFile(propsPath, JSON.stringify(renderProps, null, 2), "utf8");
-      await renderDemoVideoWithRemotion({
-        compositionId,
+      await writeFile(specPath, JSON.stringify(renderSpec, null, 2), "utf8");
+      await mkdir(projectDir, { recursive: true });
+      await renderDemoVideoWithHyperFrames({
         outputDir,
-        renderProps,
+        renderSpec,
         videoPath,
       });
     }
@@ -432,12 +754,18 @@ export async function renderReleaseArtifacts({
       videoUrl: shouldRenderVideo ? renderedDemoVideoUrl(launchPackId) : undefined,
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Release renderer failed.";
+
     return {
       enabled: true,
       outputDir,
       commands,
-      artifacts,
-      error: error instanceof Error ? error.message : "Release renderer failed.",
+      artifacts: artifacts.map((artifact) => ({
+        ...artifact,
+        status: artifact.status === "pending" ? "failed" : artifact.status,
+        error: artifact.status === "pending" ? message : artifact.error,
+      })),
+      error: message,
     };
   }
 }

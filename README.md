@@ -5,10 +5,10 @@ Public repository: [github.com/gderamchi/proofpitch](https://github.com/gderamch
 ProofPitch is a source-backed pitch-pack generator for one focused workflow:
 
 ```text
-product URL + short context + deck mode -> claim review -> visual Slidev preview + Remotion demo video render -> PDF/render state
+product URL + short context + deck mode -> claim review -> visual Slidev preview + HyperFrames demo video render -> PDF/render state
 ```
 
-The app deliberately keeps the pitch deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. The demo video path captures the submitted product URL with Playwright screenshots and renders a Remotion MP4 when local rendering is enabled. If capture is disabled or blocked, the API returns an explicit pending or blocked demo-video state instead of pretending that a slide render is a product demo.
+The app deliberately keeps the pitch deck and product demo separate. A launch-pack request returns a claim review first; accepted claims are compiled into a deterministic Slidev outline only after approval. The demo video path captures the submitted product URL with Playwright screenshots, asks GPT-5.5 for a HyperFrames composition, and renders a HyperFrames MP4 when local rendering is enabled. If capture or rendering is disabled or blocked, the API returns an explicit pending, failed, or blocked demo-video state instead of pretending that a slide render is a product demo.
 
 ## Repository Status
 
@@ -166,9 +166,8 @@ Render checks are environment-dependent:
 | `GRADIUM_API_KEY` | Planned | Reserved for future demo-video narration work; not required for the MVP flow. |
 | `FAL_KEY` | Planned | Reserved for future generated-media work; not required for the MVP flow. |
 | `PROOFPITCH_PLAYWRIGHT_CAPTURE` | Optional | Enables product-site capture through Playwright when set to `1`. |
-| `PROOFPITCH_ENABLE_LOCAL_RENDER` | Optional | Enables local Slidev/Remotion rendering when set to `1`. |
+| `PROOFPITCH_ENABLE_LOCAL_RENDER` | Optional | Enables local Slidev/HyperFrames rendering when set to `1`. |
 | `PROOFPITCH_RELEASE_ASSET_DIR` | Optional | Directory for generated local artifacts, defaulting to `.proofpitch/release-assets`. |
-| `PROOFPITCH_CHROMIUM_PACK_URL` | Optional | Overrides the Vercel Chromium pack URL used by production Remotion video rendering. |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Public site origin for generated links. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Optional | Supabase project URL for persistence/auth. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Supabase browser/client key. |
@@ -189,9 +188,8 @@ npm run lint
 npm run build
 npm run release:render:local
 npm run release:deck:export
-npm run release:video:studio
-npm run release:video:render
 npm run release:video:browser-record
+npm run release:video:hyperframes:studio
 npm run release:video:hyperframes:check
 npm run release:video:hyperframes:render
 ```
@@ -202,8 +200,8 @@ npm run release:video:hyperframes:render
 - `build`: runs the Next.js production build and type generation.
 - `release:render:local`: renders configured local release artifacts through `scripts/render-release-artifacts.mjs`.
 - `release:deck:export`: exports a generated Slidev deck PDF from `.proofpitch/release-assets/latest/pitch-deck.md`.
-- `release:video:studio` and `release:video:render`: inspect or render the Remotion `ProofPitchProductDemo` composition.
 - `release:video:browser-record`: uses Playwright to record a real production frontend flow into `hyperframes/proofpitch-demo/assets/proofpitch-browser-recording.mp4`.
+- `release:video:hyperframes:studio`: opens the HyperFrames Studio preview for the demo composition.
 - `release:video:hyperframes:check` and `release:video:hyperframes:render`: validate and render the HyperFrames demo video in `hyperframes/proofpitch-demo`, writing the public MP4 to `public/demo/proofpitch-hyperframes-demo.mp4`.
 
 ## HyperFrames Demo Video
@@ -239,7 +237,7 @@ ProofPitch is organized as a small App Router application:
 - `lib/deck-spec.ts` compiles approved claims into deterministic Slidev markdown.
 - `lib/pitch-pack-service.ts` handles provider-backed and fallback pitch-pack generation.
 - `lib/openai.ts`, `lib/tavily.ts`, and `lib/pioneer.ts` isolate external provider adapters.
-- `lib/release-renderer.ts`, `lib/release-assets.ts`, `lib/demo-video-capture.ts`, and `remotion/` handle artifact rendering.
+- `lib/release-renderer.ts`, `lib/release-assets.ts`, `lib/demo-video-capture.ts`, and `hyperframes/` handle artifact rendering.
 - `lib/local-store.ts` keeps the MVP usable when Supabase is not configured.
 - `supabase/migrations/` contains the optional persistence schema and RLS policies.
 
